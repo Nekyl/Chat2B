@@ -2,6 +2,7 @@
   "name": "Chat 2B",
   "short_name": "Chat 2B",
   "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "background_color": "#1a1a1d",
   "theme_color": "#1a1a1d",
