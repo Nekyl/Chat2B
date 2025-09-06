@@ -1,0 +1,1953 @@
+:root {
+    --bg-color: #1a1a1d;             /* Fundo principal: quase preto */
+    --sidebar-bg: #121214;           /* Sidebar: ainda mais escuro */
+    --input-bg: #1f1f22;             /* Campo de input */
+    --text-color: #e4e4e7;           /* Texto claro */
+    --text-light: rgba(228, 228, 231, 0.6); /* Texto mais leve */
+    --user-msg-bg: #2a2a2f;          /* Fundo msg do user */
+    --bot-msg-bg: #1a1a1d;           /* Fundo msg do bot */
+    --accent-color: #ffffff;         /* Cor de destaque: branco */
+    --border-color: rgba(255, 255, 255, 0.05); /* Bordas finas */
+    --shadow-color: rgba(0, 0, 0, 0.5);        /* Sombra */
+    --user-avatar-bg: #ffffff;       /* Avatar do user: branco */
+    --bot-avatar-bg: #2e2e33;        /* Avatar do bot */
+    --hover-bg: rgba(255, 255, 255, 0.1);       /* Hover suave branco */
+    --light-border: 1px solid rgba(255, 255, 255, 0.05); /* Borda sutil */
+    --subtle-radius: 6px;            /* Arredondamento suave */
+}
+
+
+
+#message-input::placeholder {
+  color: #838383;
+  transition: opacity 0.6s ease-in-out;
+  opacity: 1;
+}
+
+#message-input.hiding-placeholder::placeholder {
+  opacity: 0;
+}
+
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg-color);
+    color: var(--text-color);
+    height: 100vh;
+    line-height: 1.6;
+}
+
+/* --- Sidebar --- */
+.sidebar {
+    width: 260px;
+    background-color: var(--sidebar-bg);
+    border-right: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    box-shadow: 0 0 10px var(--shadow-color);
+}
+
+.chat-history {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+}
+
+.chat-history::-webkit-scrollbar {
+    width: 5px;
+}
+
+.chat-history::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.chat-history::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 10px;
+}
+
+.chat-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    padding-right: 40px; /* Espaço para o botão de três pontos */
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-light);
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s ease;
+    position: relative;
+    margin-bottom: 2px;
+    font-size: 0.9rem;
+}
+
+.chat-item:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-color);
+}
+
+.chat-item.active {
+    background-color: var(--hover-bg);
+    color: var(--text-color);
+    border-left: 3px solid var(--accent-color);
+}
+
+.chat-item i {
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+.chat-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.85rem;
+    min-width: 0;
+    padding: 2px 4px;
+    border-radius: var(--subtle-radius);
+    line-height: 1.4;
+    transition: color 0.2s ease;
+}
+
+.chat-title[contenteditable="true"] {
+    background: rgba(255, 255, 255, 0.1);
+    outline: none;
+    border: 1px solid var(--accent-color);
+    padding: 3px 6px;
+}
+
+.chat-buttons {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.chat-item:hover .chat-buttons {
+    opacity: 1;
+}
+
+.chat-menu-btn {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    cursor: pointer;
+    padding: 4px;
+    opacity: 0.7;
+    transition: all 0.2s ease;
+    border-radius: var(--subtle-radius);
+}
+
+.chat-menu-btn:hover {
+    opacity: 1;
+    background-color: var(--hover-bg);
+}
+
+/* Botão Nova Conversa */
+.new-chat-btn { 
+    background-color: var(--accent-color);
+    color: #000000;
+    border: none;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 14px 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.2s ease;
+    text-align: left;
+    cursor: pointer;
+    width: calc(100% - 80px);
+    font-weight: 500;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+.new-chat-btn:hover {
+    background-color: #e6e6e6; /* Tom de cinza claro */
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
+}
+
+.new-chat-btn:active {
+    transform: translateY(0);
+    background-color: #d9d9d9; /* Um pouco mais escuro quando pressionado */
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* Ações do item da conversa (ícone de três pontos) */
+.chat-item-actions {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+}
+
+/* Menu dropdown (renomear, exportar, excluir) */
+.chat-dropdown-menu {
+    position: absolute;
+    right: 0;
+    top: 32px;
+    background-color: #1a1a1a; /* Fundo sólido */
+    border: 1px solid #333;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 1); /* sombra opaca */
+    overflow: hidden;
+    width: 160px;
+    z-index: 9999; /* sempre acima */
+}
+
+/* Evita efeitos de transparência acidental */
+.chat-dropdown-menu::backdrop,
+.chat-dropdown-menu * {
+    backdrop-filter: none !important;
+}
+
+/* Itens do dropdown */
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    color: var(--text-color);
+    background-color: #1a1a1a;
+    border: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 0.92rem;
+}
+
+.dropdown-item:hover {
+    background-color: #2d2d2d;
+}
+
+.dropdown-item i {
+    font-size: 0.9rem;
+    width: 14px;
+}
+
+
+/* --- Main Content Area --- */
+.main-content {
+    background-color: var(--bg-color);
+    flex-grow: 1;
+    margin-left: 260px;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: calc(100% - 260px);
+    position: relative;
+}
+
+.chat-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.scroll-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow-y: auto;
+}
+
+/* Ajustes para Mobile */
+@media (max-width: 768px) {
+    body {
+        overflow: hidden;
+    }
+    
+    .main-content {
+        margin-left: 0;
+        width: 100%;
+        height: 100vh;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+    }
+
+    .chat-container {
+        flex: 1;
+        overflow: hidden;
+    }
+
+    .scroll-container {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .bottom-bar {
+        background: var(--bg-color);
+    }
+
+    .message-content pre {
+        margin: 10px -8px;
+        border-radius: 6px;
+        border-width: 1px 0;
+    }
+
+    .message-content pre code {
+        font-size: 13px;
+        padding: 12px;
+        max-height: 300px;
+    }
+
+    .message-content pre::before {
+        padding: 8px 12px;
+        font-size: 11px;
+        background: rgba(255, 255, 255, 0.15);
+    }
+}
+
+/* Standard Markdown Formatting */
+.message-content {
+    line-height: 1.6;
+}
+
+.message-content h1, .message-content h2, .message-content h3,
+.message-content h4, .message-content h5, .message-content h6 {
+    margin: 1.5em 0 0.5em;
+    font-weight: 600;
+}
+
+.message-content h1 { font-size: 2em; }
+.message-content h2 { font-size: 1.5em; }
+.message-content h3 { font-size: 1.17em; }
+.message-content h4 { font-size: 1em; }
+
+.message-content p {
+    margin: 1em 0;
+}
+
+.message-content ul, .message-content ol {
+    margin: 1em 0;
+    padding-left: 2em;
+}
+
+.message-content li {
+    margin: 0.5em 0;
+}
+
+.message-content a {
+    color: var(--accent-color) !important;
+    text-decoration: underline;
+}
+.message-content a:hover {
+    color: #ffcc00; 
+}
+
+.message-content blockquote {
+    margin: 1em 0;
+    padding-left: 1em;
+    border-left: 4px solid var(--accent-color);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.message-content table {
+    width: 100%;
+    margin: 1em 0;
+    border-collapse: collapse;
+}
+
+.message-content th, .message-content td {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+}
+
+.message-content th {
+    background: rgba(255, 255, 255, 0.1);
+    font-weight: 600;
+}
+
+.message-content img.user-uploaded-image { /* Estilo para imagem enviada pelo usuário */
+    max-width: 300px; /* Ou o tamanho que preferir */
+    max-height: 300px;
+    border-radius: 8px;
+    margin-top: 8px;
+    border: 1px solid var(--border-color);
+    object-fit: contain; /* Para não distorcer a imagem */
+}
+
+.message-content img { /* Estilo geral para imagens (ex: do bot) */
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    margin-top: 8px;
+}
+
+
+/* --- Top Bar --- */
+.top-bar {
+    border-bottom: 1px solid var(--border-color);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: var(--bg-color);
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.15);
+}
+
+.mobile-menu-btn {
+    display: none;
+}
+
+/* Estilo comum para botões de ação na barra superior */ 
+.top-bar-action-btn {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 20px;
+    transition: background-color 0.2s;
+    flex-shrink: 0; /* Importante para o tamanho fixo */ 
+}
+
+.top-bar-action-btn:hover {
+    background-color: var(--hover-bg);
+}
+
+/* Específico para o novo botão de configurações do aplicativo */ 
+#app-settings-btn {
+/* margem esquerda: auto; /* Empurra para a direita se nenhum outro elemento seguir */
+/* Se não for o último elemento, a lacuna lidará com o espaçamento */ 
+}
+
+
+/* Atualizado para entrada de servidor/API */ 
+.server-url-input {
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 10px 14px;
+    border-radius: 6px;
+    outline: none;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    flex-grow: 1;
+/* Ocupar espaço disponível */
+/* margem direita: 10px; /* Substituído por lacuna */ 
+    min-width: 100px; /* Largura mínima antes de encolher demais */ 
+}
+.server-url-input:hover,
+.server-url-input:focus {
+    border-color: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+
+.model-selector {
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 10px 14px;
+    border-radius: 6px;
+    outline: none;
+    font-size: 0.92rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 30px;
+    flex-shrink: 0;
+    min-width: 150px;
+}
+
+.model-selector:hover, 
+.model-selector:focus {
+    border-color: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* --- Chat Container --- */
+.chat-container {
+    flex: 1;
+    height: calc(100vh - 120px);
+    width: 100%;
+    position: relative;
+    overflow: hidden; /* Remove overflow aqui */
+}
+
+/* Container para a área scrollável */
+.scroll-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow-y: scroll;
+    width: calc(100% + 20px); /* Compensa a largura da scrollbar */
+    padding-right: 20px; /* Compensa o espaço extra */
+    box-sizing: content-box;
+}
+
+/* Ajuste do container principal de mensagens */
+.messages {
+    max-width: 900px;
+    margin: 0 auto;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* Estilização da barra de rolagem */
+.scroll-container::-webkit-scrollbar {
+    width: 8px;
+    position: absolute;
+    right: 0;
+}
+
+.scroll-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.scroll-container::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 4px;
+}
+
+/* Ajustes Mobile */
+@media (max-width: 768px) {
+    .main-content {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .scroll-container {
+        width: calc(100% + 15px); /* Menor compensação em mobile */
+        padding-right: 15px;
+    }
+    .top-bar {
+        /* flex-wrap: wrap; /* REMOVIDO para manter os itens em uma linha */
+        padding: 8px 10px; /* Padding reduzido para mobile */
+        gap: 6px; /* Espaçamento reduzido para mobile */
+    }
+
+    .mobile-menu-btn { /* Já é implicitamente um .top-bar-action-btn */
+        display: block !important;
+        /* margin-right: 10px; /* Substituído pelo espaçamento do pai */
+        font-size: 18px; /* Ícone ligeiramente menor */
+        padding: 8px; /* Preenchimento consistente */
+    }
+
+    #app-settings-btn { /* Estilos para o novo botão de configurações no mobile */
+        display: block !important; /* Garante que esteja visível */
+        font-size: 18px;
+        padding: 8px;
+    }
+
+    .server-url-input {
+        /* width: calc(60% - 10px); /* Substituído por flex-grow */
+        flex-grow: 1; /* Ocupa a maior parte do espaço disponível */
+        min-width: 60px; /* Permite encolher significativamente */
+        /* margin-right: 10px; /* Substituído pelo espaçamento do pai */
+        margin-bottom: 0; /* Sem margem inferior quando em linha */
+        font-size: 0.8rem; /* Fonte menor para mobile */
+        padding: 8px 10px; /* Preenchimento reduzido */
+    }
+    .model-selector {
+        /* width: calc(40% - 10px); /* Substituído por propriedades flex */
+        flex-grow: 0.5; /* Cresce, mas menos que o input */
+        flex-shrink: 1; /* Permite encolher */
+        min-width: 100px; /* Largura mínima legível */
+        margin-bottom: 0; /* Sem margem inferior quando em linha */
+        font-size: 0.8rem; /* Fonte menor para mobile */
+        padding: 8px 10px; /* Preenchimento reduzido */
+        padding-right: 28px; /* Ajusta a seta do select com novo preenchimento */
+        background-position: right 8px center; /* Ajusta a posição da seta */
+    }
+
+}
+
+/* --- Messages (Base Styles) --- */
+.message {
+    display: flex;
+    padding: 16px 20px;
+    opacity: 0;
+    transform: translateY(10px);
+    animation: message-appear 0.3s ease forwards;
+    width: 100%;
+    box-sizing: border-box;
+    position: relative;
+}
+
+@keyframes message-appear {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message:first-child {
+    border-top: none;
+}
+
+/* Remove avatares */
+.avatar {
+    display: none;
+}
+
+/* Estilo do carimbo de data/hora */
+.message-timestamp {
+    font-size: 12px;
+    color: var(--text-light);
+    opacity: 0.7;
+    margin-bottom: 4px;
+}
+
+.user-message .message-timestamp {
+    justify-content: flex-end;
+}
+
+/* --- Bot Message Specific Styles --- */
+.bot-message {
+    background-color: var(--bot-msg-bg);
+}
+
+.bot-message .message-content {
+    flex: 1;
+    max-width: 750px;
+    margin: 0 auto;
+    position: relative;
+    font-size: 15px;
+    padding: 0;
+}
+
+/* --- User Message Specific Styles --- */
+.user-message {
+    background-color: transparent;
+    justify-content: flex-end;
+}
+
+.user-message .message-content {
+    background-color: var(--user-msg-bg);
+    border-radius: 10px;
+    padding: 10px 15px;
+    max-width: 750px;
+    font-size: 15px;
+    position: relative;
+}
+
+.user-message .message-timestamp {
+    text-align: right;
+    margin-right: 4px;
+}
+
+.message-actions {
+    position: absolute;
+    top: -10px;
+    right: 0;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    background: transparent;
+    padding: 2px;
+}
+
+.message-content:hover .message-actions {
+    opacity: 1;
+}
+
+.message-action-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    opacity: 0.7;
+    font-size: 12px;
+}
+
+.message-action-btn:hover {
+    opacity: 1;
+}
+
+/* Animação de Digitação - Simplificada */
+#typing-animation {
+    padding: 16px 20px;
+    background-color: var(--bot-msg-bg);
+    display: none;
+}
+
+.typing-container {
+    max-width: 750px;
+    margin: 0;
+    display: flex;
+    align-items: center;
+}
+
+.typing-dots {
+    display: flex;
+    gap: 4px;
+    margin-left: 0;
+}
+
+.typing-dot {
+    width: 5px;
+    height: 5px;
+    background: var(--text-light);
+    border-radius: 50%;
+    animation: typing 1.4s infinite ease-in-out;
+    opacity: 0.7;
+}
+
+.typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typing {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+}
+
+/* Ajustes para Mobile */
+@media (max-width: 768px) {
+    .message {
+        padding: 12px 16px;
+    }
+
+    .message-actions {
+        opacity: 1;
+    }
+
+    .message-action-btn {
+        padding: 3px;
+        font-size: 11px;
+    }
+
+    .bot-message .message-content,
+    .user-message .message-content {
+        font-size: 16px;
+        line-height: 1.5;
+    }
+
+    .message-timestamp {
+        font-size: 13px;
+    }
+
+    #typing-animation {
+        padding: 12px 16px;
+    }
+
+    .user-message {
+        padding-right: 35px;
+    }
+
+    .typing-container {
+        padding-left: 16px;
+    }
+}
+
+/* --- Welcome Screen --- */
+.welcome-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    text-align: center;
+    gap: 24px;
+    margin: auto;
+    max-width: 650px;
+    padding: 20px;
+}
+
+.welcome-screen h2 {
+    font-size: 2rem;
+    font-weight: 600;
+    color: white;
+    margin-bottom: 10px;
+}
+
+.welcome-screen p {
+    font-size: 1.1rem;
+    color: var(--text-light);
+    line-height: 1.5;
+    max-width: 500px;
+}
+
+.welcome-screen .avatar {
+    width: 60px;
+    height: 60px;
+    font-size: 2rem;
+    background-color: var(--accent-color);
+    border-radius: 50%;
+    margin-bottom: 10px;
+}
+
+/* --- Bottom Bar --- */
+.bottom-bar {
+    background-color: var(--bg-color);
+    border-top: 1px solid var(--border-color);
+    padding: 10px 20px; /* Reduzido padding superior/inferior para acomodar preview */
+    position: sticky;
+    bottom: 0;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+}
+
+.input-area-container { /* Novo container para input e preview */
+    max-width: 700px;
+    margin: 0 auto;
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 15px;    
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+}
+.input-area-container:focus-within {
+    border-color: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 2px 10px rgba(255, 255, 255, 0.1);
+}
+
+#image-preview-container {
+    padding: 10px 15px 5px; /* Espaçamento interno para preview */
+    display: none; /* Escondido por padrão */
+    position: relative;
+}
+
+#image-preview {
+    max-width: 100px;
+    max-height: 100px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    object-fit: cover;
+}
+
+#remove-image-btn {
+    position: absolute;
+    top: 2px; /* Ajuste fino */
+    right: 2px; /* Ajuste fino */
+    background: rgba(0,0,0,0.6);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 10px;
+    line-height: 20px;
+    text-align: center;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#remove-image-btn:hover {
+    background: rgba(0,0,0,0.8);
+}
+
+
+.input-wrapper {
+    /* max-width: 700px;
+    margin: 0 auto;
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 15px; */
+    display: flex;
+    align-items: flex-end; /* Alinha pelo topo para crescer corretamente */
+    padding: 10px 15px; /* Padding interno */
+    /* box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease; */
+    gap: 10px; /* espaço entre input e botão */
+}
+/* .input-wrapper:focus-within {
+    border-color: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 2px 10px rgba(255, 255, 255, 0.1);
+} */
+
+.input-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+}
+
+#message-input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: var(--text-color);
+    resize: none;
+    font-size: 16px;
+    outline: none;
+    line-height: 1.5;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 8px 4px;
+    max-height: 120px;
+    min-height: 24px;
+}
+
+.input-actions { /* Container para botões de ação do input */
+    display: flex;
+    align-items: flex-end; /* Alinha com o textarea se ele crescer */
+    gap: 8px;
+}
+
+.attach-btn,
+.send-btn {
+    background-color: #ccc; /* Cor base, será ajustada */
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 16px; /* Ajustado para ícones */
+    cursor: pointer;
+    transition: 0.2s ease;
+    flex-shrink: 0;
+}
+
+.attach-btn {
+    background-color: transparent; /* Ou var(--input-bg) para sutil */
+    color: var(--text-light);
+}
+.attach-btn:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-color);
+}
+
+
+.send-btn {
+    background-color: white; /* Mantém o destaque do send */
+    color: #333;
+}
+
+.send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+    background-color: #777; /* Cinza mais escuro quando desabilitado */
+}
+
+.send-btn:not(:disabled):hover {
+    background-color: rgba(255, 255, 255, 0.9);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+
+.send-btn:not(:disabled):active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+
+/* --- Mobile Styles --- */
+@media (max-width: 768px) {
+    .sidebar {
+        left: -260px;
+        transition: left 0.3s ease;
+        z-index: 1000;
+    }
+
+    .sidebar.active {
+        left: 0;
+        box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
+    }
+
+    /* .main-content adjustments already handled */
+    /* .mobile-menu-btn adjustments already handled */
+
+
+    .message {
+        padding: 12px;
+    }
+
+    .messages {
+        max-width: 100%;
+        padding: 0 8px;
+    }
+
+    .user-message {
+        padding-right: 12px;
+    }
+
+    /* Ajustes para mensagens do bot em mobile */
+    .bot-message .message-content {
+        padding: 0 12px;
+        max-width: 100%;
+        overflow-x: hidden;
+        word-wrap: break-word;
+    }
+
+    /* Ajustes para código em mobile */
+    .message-content pre {
+        margin: 10px -8px;
+        border-radius: 4px;
+        max-width: calc(100vw - 32px); /* Evita overflow horizontal */
+        overflow-x: auto;
+    }
+
+    .message-content pre code {
+        padding: 12px;
+        font-size: 13px;
+        white-space: pre-wrap; /* Permite quebra de linha no código */
+    }
+
+    /* Ajustes para imagens em mobile */
+    .message-content img.user-uploaded-image,
+    .message-content img {
+        max-width: 100%; /* Imagem ocupa a largura disponível */
+        height: auto;
+    }
+
+    /* Ajustes para tabelas em mobile */
+    .message-content table {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+    }
+
+    /* Ajusta o input para mobile */
+    .input-area-container { /* Ajuste para o novo container */
+        margin: 0 8px;
+        max-width: calc(100% - 16px);
+    }
+
+
+    #message-input {
+        font-size: 16px; /* Evita zoom em iOS */
+        padding: 8px;
+    }
+
+    /* Garante que o overlay cubra toda a tela */
+    .overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+    }
+
+    .overlay.active {
+        display: block;
+    }
+
+    /* Melhora visualização de botões em mobile */
+    .message-actions {
+        top: -8px;
+        right: 4px;
+        opacity: 1 !important;
+        visibility: visible !important;
+    }
+
+    .message-action-btn {
+        padding: 4px;
+        font-size: 12px;
+    }
+}
+
+/* --- Code Blocks --- */
+.message-content pre {
+    background: #1a1a1a;
+    border-radius: 8px;
+    margin: 1.2em 0;
+    overflow: hidden;
+    position: relative;
+    padding-top: 36px !important; /* Space for the header bar */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Code block header bar */
+.code-block-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 36px;
+    background: #2d2d2d;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 12px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Language label */
+.code-language {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+/* --- Code Syntax Highlighting --- */
+.code-block-content {
+    margin-top: -36px; /* Align content with header bar */
+    padding: 12px;
+    background-color: #1a1a1a;
+}
+
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+    color: #708090;
+}
+
+.token.operator,
+.token.punctuation {
+    color: #d4d4d4;
+}
+
+.token.tag,
+.token.attr-name {
+    color: #e6db74;
+}
+
+.token.attr-value,
+.token.string {
+    color: #a6e22e;
+}
+
+.token.keyword {
+    color: #f92672;
+}
+
+.token.number {
+    color: #ae81ff;
+}
+
+.token.boolean,
+.token.constant {
+    color: #66d9ef;
+}
+
+.token.function {
+    color: #a6e22e;
+}
+
+.token.class-name {
+    color: #66d9ef;
+}
+
+.token.selector {
+    color: #a6e22e;
+}
+
+.token.operator.logical,
+.token.operator.relational {
+    color: #f92672;
+}
+
+.token.entity,
+.token.url {
+    color: #ae81ff;
+}
+
+.token.variable {
+    color: #a6e22e;
+}
+
+.token.inserted {
+    background-color: hsla(100, 100%, 50%, 0.1);
+    text-decoration: none !important;
+}
+
+.token.deleted {
+    background-color: hsla(0, 100%, 50%, 0.1);
+    text-decoration: line-through !important;
+}
+/* Language label */
+.code-language {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+/* Copy button */
+.code-copy-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.85);
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    height: 26px;
+}
+
+.code-copy-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.25);
+    transform: translateY(-1px);
+}
+
+.code-copy-btn:active {
+    transform: translateY(0);
+}
+
+.code-copy-btn i {
+    font-size: 12px;
+}
+
+.code-copy-btn.copied {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: black;
+}
+
+.message-content pre code {
+    display: block;
+    padding: 16px;
+    overflow-x: auto;
+    font-family: 'Fira Code', 'Consolas', 'Monaco', 'Andale Mono', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #e6e6e6;
+    background: transparent;
+    border: none;
+    max-height: 500px;
+}
+
+/* Scrollbar Styles */
+.message-content pre code::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+}
+
+.message-content pre code::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+.message-content pre code::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+.message-content pre code::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Estilos para o Modal de Confirmação */
+
+.modal-overlay {
+    position: fixed; /* Cobre toda a tela */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7); /* Fundo escurecido semi-transparente */
+    display: none; /* Escondido por padrão */
+    justify-content: center;
+    align-items: center;
+    z-index: 1000; /* Fica sobre todo o resto */
+    opacity: 0; /* Começa invisível para transição */
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.active {
+    display: flex; /* Mostra quando ativo */
+    opacity: 1; /* Torna visível */
+}
+
+.modal {
+    background-color: #2c2c2e; /* Cor de fundo escura, ajuste se necessário */
+    color: #e0e0e0; /* Cor do texto */
+    padding: 25px 30px;
+    border-radius: 10px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+    max-width: 450px; /* Largura máxima */
+    width: 90%; /* Responsivo */
+    text-align: center;
+    transform: scale(0.9); /* Começa pequeno para transição */
+    transition: transform 0.3s ease, opacity 0.3s ease; /* Added opacity transition */
+}
+/* Specific for settings modal for wider content */
+#app-settings-modal {
+    max-width: 600px; /* Wider for textarea */
+}
+
+
+.modal-overlay.active .modal {
+    transform: scale(1); /* Cresce para o tamanho normal */
+}
+
+.modal h2 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #ffcc00; /* Cor de destaque para o título */
+    font-size: 1.4em;
+}
+
+.modal h2 i {
+    margin-right: 10px;
+}
+
+.modal p {
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
+.modal p strong {
+    color: #ffffff; /* Destaca o nome do chat */
+}
+
+.modal .warning-text {
+    font-weight: bold;
+    color: #ff6b6b; /* Cor de aviso */
+    margin-bottom: 25px;
+    font-size: 0.9em;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end; /* Align buttons to the right for settings */
+    gap: 15px; /* Espaço entre botões */
+    margin-top: 20px;
+}
+#delete-confirm-modal .modal-actions { /* Keep delete modal buttons centered */
+    justify-content: space-around;
+}
+
+
+/* Estilos básicos para botões do modal (adapte às suas classes .btn) */
+.modal .btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.95em;
+    font-weight: bold;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.modal .btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px); /* Efeito sutil ao passar o mouse */
+}
+
+.modal .btn-primary { /* Added for Save button */
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+}
+.modal .btn-primary:hover {
+    background-color: #e6e6e6;
+}
+
+
+.modal .btn-secondary {
+    background-color: #555;
+    color: white;
+}
+.modal .btn-secondary:hover {
+    background-color: #666;
+}
+
+.modal .btn-danger {
+    background-color: #e53935; /* Vermelho perigo */
+    color: white;
+}
+.modal .btn-danger:hover {
+    background-color: #c62828;
+}
+
+/* Styles for App Settings Modal Content */
+.app-settings-content {
+    text-align: left;
+    margin-bottom: 20px;
+}
+
+.app-settings-content .setting-item {
+    margin-bottom: 15px;
+    /* display: flex;
+    align-items: center;
+    gap: 10px; */
+}
+.app-settings-content .setting-item label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 5px;
+}
+
+
+.app-settings-content select,
+.app-settings-content input[type="text"],
+.app-settings-content input[type="number"],
+.app-settings-content textarea {
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 8px 12px;
+    border-radius: 4px;
+    outline: none;
+    font-size: 0.9rem;
+    width: 100%; /* Make inputs take full width of their container */
+    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+}
+.app-settings-content textarea {
+    min-height: 150px;
+    resize: vertical;
+    font-family: inherit;
+}
+.app-settings-content input[type="number"] {
+    width: auto; /* Allow number input to be smaller */
+    min-width: 80px;
+    flex-grow: 0;
+}
+.app-settings-content .setting-item-inline { /* For temperature to be inline with label */
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.app-settings-content .setting-item-inline label {
+    margin-bottom: 0; /* Remove bottom margin for inline label */
+    flex-shrink: 0; /* Prevent label from shrinking */
+}
+
+
+
+
+/* Modal de Confirmação (legacy, can be merged or removed if styles are identical to general .modal) */
+.confirmation-modal {
+    /* ... (can be removed if general .modal styles are sufficient) ... */
+
+}
+.confirmation-content {
+    /* ... */
+}
+.confirmation-buttons {
+    /* ... */
+}
+/* ... */
+
+/* Feedback de cópia */
+.copy-feedback {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--accent-color);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 4px;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: all 0.3s ease;
+    pointer-events: none;
+}
+
+.copy-feedback.active {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Remove all code copy button related styles */
+.code-copy-button,
+.message-action-btn {
+    transition: all 0.2s ease;
+}
+
+.code-copy-button.copied,
+.message-action-btn.copied {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.code-copy-button.copied i,
+.message-action-btn.copied i {
+    animation: checkmark 0.2s ease-in-out;
+}
+
+@keyframes checkmark {
+    0% {
+        transform: scale(0);
+    }
+    50% {
+        transform: scale(1.2);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Remove pre padding adjustment */
+pre {
+    position: relative;
+    padding-top: 12px !important;
+}
+
+/* Feedback de cópia */
+.message-action-btn.copied {
+    background-color: white;
+    color: black; 
+    opacity: 1; 
+    animation: checkmark 0.3s ease-in-out;
+}
+
+/* @keyframes checkmark (already defined, ensure no conflict or merge) */
+
+
+/* Botão de scroll para baixo */
+.scroll-to-bottom-btn {
+    position: fixed;
+    /* bottom: 100px; */ /* Ajustar por causa do input bar maior */
+    bottom: 120px; /* Ou dinamicamente com JS */
+    right: 20px;
+    background-color: var(--accent-color);
+    color: black;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.3s ease;
+    z-index: 100;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.scroll-to-bottom-btn.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.scroll-to-bottom-btn:hover {
+    background-color: white; 
+    transform: translateY(-2px);
+}
+
+/* Estilos para o botão de busca */
+.search-container {
+    position: absolute;
+    top: 14px; /* Alinha com a margem superior do botão nova conversa */
+    right: 10px;
+    display: flex;
+    align-items: center;
+    height: 45px; /* Mesma altura do botão nova conversa */
+}
+
+.search-btn {
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-light);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    opacity: 0.7;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 45px;
+    height: 100%;
+}
+
+.search-btn:hover {
+    background: var(--hover-bg);
+    color: var(--text-color);
+    opacity: 1;
+    transform: translateY(-1px);
+}
+
+.search-btn i {
+    font-size: 14px;
+}
+
+/* Highlight style for search matches */
+.search-match-highlight {
+    background-color: rgba(0, 255, 0, 0.2);
+    border-radius: 2px;
+    padding: 0 2px;
+    transition: background-color 0.5s ease-out;
+}
+
+.search-match-highlight.fade {
+    background-color: transparent;
+}
+
+/* Overlay de pesquisa */
+.search-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: none;
+    z-index: 1000;
+}
+
+.search-overlay.active {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+}
+
+.search-modal {
+    background: #202123;
+    width: 90%;
+    max-width: 600px;
+    margin-top: 80px;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+}
+
+.search-header {
+    padding: 8px;
+    border-bottom: 1px solid #4d4d4f;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.search-input-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    background: #40414f;
+    border-radius: 6px;
+    padding: 6px 12px;
+    gap: 8px;
+}
+
+.search-input-container i {
+    color: #8e8ea0;
+}
+
+#search-input {
+    flex: 1;
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 14px;
+    padding: 4px;
+    outline: none;
+}
+
+.clear-search-btn,
+.close-search-btn {
+    background: none;
+    border: none;
+    color: #8e8ea0;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.clear-search-btn:hover,
+.close-search-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.search-results {
+    max-height: 70vh;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+/* Estilos para os resultados da busca */
+.search-section {
+    margin-bottom: 20px;
+}
+
+.search-section-header {
+    font-size: 0.9em;
+    color: #8e8ea0;
+    text-transform: uppercase;
+    margin: 8px 12px;
+    font-weight: 500;
+}
+
+.search-result-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    cursor: pointer;
+    border-radius: 8px;
+    margin: 4px 0;
+    transition: background-color 0.2s;
+}
+
+.search-result-item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.search-result-item i {
+    font-size: 20px;
+    margin-right: 12px;
+    color: #8e8ea0;
+}
+
+.search-result-content {
+    flex: 1;
+    overflow: hidden;
+}
+
+.search-result-title {
+    font-weight: 500;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.search-result-preview {
+    font-size: 0.9em;
+    color: #8e8ea0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Estilo para destacar termos encontrados */
+.search-highlight {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+/* Estilos para os cabeçalhos das seções de chat */
+.chat-section-header {
+    color: var(--text-light);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 16px 12px 8px;
+    margin-top: 4px;
+}
+
+/* Ajuste do espaçamento para o primeiro cabeçalho */
+.chat-section-header:first-child {
+    margin-top: 0;
+}
+
+/* Garante que a barra de rolagem fique na extremidade */
+.chat-container::-webkit-scrollbar,
+.messages::-webkit-scrollbar {
+    width: 6px;
+    position: absolute;
+    right: 0;
+}
+
+.chat-container::-webkit-scrollbar-track,
+.messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.chat-container::-webkit-scrollbar-thumb,
+.messages::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 3px;
+}
+
+@media (max-width: 768px) {
+    body {
+        height: 100vh;
+        height: -webkit-fill-available;
+    }
+
+    .main-content {
+        height: 100vh;
+        height: -webkit-fill-available;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .chat-container {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .scroll-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .messages {
+        padding-bottom: 20px;
+    }
+
+    .bottom-bar {
+        position: relative;
+        background-color: var(--bg-color);
+        padding: 16px 20px;
+        padding-bottom: calc(16px + env(safe-area-inset-bottom));
+        z-index: 10;
+    }
+}
+/* Estilo para o input de edição do título do chat */
+.chat-title-edit-input {
+    flex-grow: 1;
+    background: var(--input-bg);
+    border: 1px solid var(--accent-color);
+    color: var(--text-color);
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    margin-right: 5px; /* Para não colar nos botões de ação */
+    outline: none;
+}
+
+.message-actions {
+  position: static; /* Anula o posicionamento absoluto */
+  opacity: 1;       /* Deixa os botões sempre visíveis, não apenas no hover */
+  transform: none;  /* Reseta qualquer transformação de posição */
+  
+  /* 2. Adicionamos um espaçamento para não colar na mensagem */
+  margin-top: 10px;
+
+  /* 3. Usamos flexbox para alinhar os botões e dar espaço entre eles */
+  display: flex;
+  gap: 10px; /* Espaço entre o botão de ouvir e o de copiar */
+}
+
+.message-content:hover .message-actions {
+  opacity: 1;
+}
+
+.message-action-btn {
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 5px 10px;
+  opacity: 0.8;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.message-action-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  opacity: 1;
+}
+
+.user-message .message-actions {
+  justify-content: flex-end;
+}
+
+.user-message .message-content {
+    padding: 5px 10px;
+    min-width: 100px; 
+}
+
+.user-message .message-content p {
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+
+/* Este media query garante que as regras só se apliquem em telas de celular. */
+@media (max-width: 768px) {
+
+    /* 1. Trava a rolagem do fundo da página. */
+    body, html {
+        overflow: hidden !important;
+    }
+
+    /* 2. FORÇA o container principal a ser um quadro de tela cheia,
+          e o transforma em um container flexível vertical.
+          Esta é a base de tudo. */
+    .main-content {
+        position: fixed !important;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    /* 3. Garante que o cabeçalho e o rodapé tenham altura fixa e nunca sejam espremidos. */
+    .top-bar, .bottom-bar {
+        flex-shrink: 0;
+        position: relative; /* Remove 'sticky' ou outros posicionamentos que possam atrapalhar. */
+    }
+
+    /* 4. FAZ A MÁGICA: O container do chat é forçado a crescer e ocupar
+          TODO o espaço que sobra entre o cabeçalho e o rodapé. */
+    .chat-container {
+        flex-grow: 1; /* Essencial: faz o elemento crescer. */
+        overflow: hidden; /* Importante: esconde qualquer conteúdo que transborde. */
+        position: relative; /* Necessário para o .scroll-container funcionar. */
+        min-height: 0; /* Um truque crucial para o flexbox não quebrar. */
+    }
+
+    .scroll-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        overflow-y: auto; /* Permite a rolagem APENAS aqui dentro. */
+        -webkit-overflow-scrolling: touch; /* Melhora a fluidez da rolagem em iOS. */
+    }
+}
+

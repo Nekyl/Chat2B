@@ -1,0 +1,23 @@
+{
+  "name": "Chat 2B",
+  "short_name": "Chat 2B",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "display": "standalone",
+  "background_color": "#1a1a1d",
+  "theme_color": "#1a1a1d",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}
