@@ -3,13 +3,12 @@ const CACHE_NAME = 'chat2b-cache-v3'; // Mudei a versão para forçar a atualiza
 
 // Lista de arquivos com caminhos relativos. Funciona em qualquer lugar.
 const FILES_TO_CACHE = [
-  './',
-  './index.html',
-  './style.css',
-  './script.js',
-  './prompt.js',
-  './manifest.json',
-  './icon-192.png',
+  'index.html',
+  'style.css',
+  'script.js',
+  'prompt.js',
+  'manifest.json',
+  'icon-192.png',
   './icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/marked/4.0.2/marked.min.js',
