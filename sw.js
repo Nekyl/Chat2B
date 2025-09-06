@@ -9,7 +9,7 @@ const FILES_TO_CACHE = [
   'prompt.js',
   'manifest.json',
   'icon-192.png',
-  './icon-512.png',
+  'icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/marked/4.0.2/marked.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js',
