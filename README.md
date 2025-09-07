@@ -1,4 +1,4 @@
-# Chat 2B 
+# Chat 2B
 
 Um front-end de chat, 100% client-side, para interagir com as APIs do Google Gemini e instâncias locais do Ollama.
 
@@ -21,7 +21,7 @@ Para obter a melhor experiência e extrair o máximo da persona customizada, o u
 
 ## ⚙️ Getting Started
 
-Este projeto é 100% client-side, sem necessidade de build steps.
+Este projeto é 100% client-side, sem necessidade de build steps. Você pode **[clicar aqui](https://nekyl.github.io/2B-Chat/)** para testar a versão online agora mesmo, ou seguir os passos abaixo para rodar localmente.
 
 1.  **Clone o repositório:**
     ```bash
