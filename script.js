@@ -1250,7 +1250,31 @@ function handleSaveAppSettings() {
     setTimeout(() => { hideAppSettingsModal(); }, 1000);
 }
 
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    const installPwaBtn = document.getElementById('install-pwa-btn');
+    if (installPwaBtn) {
+        installPwaBtn.style.display = 'block';
+    }
+});
+
 function setupEventListeners() {
+    const installPwaBtn = document.getElementById("install-pwa-btn");
+    if (installPwaBtn) {
+        installPwaBtn.addEventListener("click", async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log(`User response to the install prompt: ${outcome}`);
+                deferredPrompt = null;
+                installPwaBtn.style.display = "none";
+            }
+        });
+    }
+
     if (mobileMenuBtn) {
         mobileMenuBtn.addEventListener('click', () => {
             sidebar?.classList.toggle('active');
