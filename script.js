@@ -41,6 +41,9 @@ const temperatureValueDisplay = document.getElementById('temperature-value-displ
 const saveAppSettingsBtn = document.getElementById('save-app-settings-btn');
 const cancelAppSettingsBtn = document.getElementById('cancel-app-settings-btn');
 const settingsFeedback = document.getElementById('settings-feedback');
+const geminiApiKeyInput = document.getElementById('gemini-api-key-input');
+const geminiApiKeyDisplay = document.getElementById('gemini-api-key-display');
+const apiKeyToggleBtn = document.getElementById('api-key-toggle-btn');
 
 
 // --- Variáveis de Estado ---
@@ -840,7 +843,7 @@ function loadAppSettingsFromLocalStorage() {
     const savedTemp = localStorage.getItem(TEMPERATURE_STORAGE_KEY);
     if (savedTemp !== null) {
         const temp = parseFloat(savedTemp);
-        if (!isNaN(temp) && temp >= 0 && temp <= 1.0) { currentTemperature = temp; }
+        if (!isNaN(temp) && temp >= 0 && temp <= 2.0) { currentTemperature = temp; }
         else { currentTemperature = DEFAULT_TEMPERATURE; }
     } else {
         currentTemperature = DEFAULT_TEMPERATURE;
@@ -1222,33 +1225,81 @@ function highlightTerms(text, terms) {
 }
 
 function showAppSettingsModal() {
-    if (!appSettingsModalOverlay || !systemPromptInput || !temperatureInput || !temperatureValueDisplay) return;
-    const promptToDisplay = (localStorage.getItem(SYSTEM_PROMPT_STORAGE_KEY) === null && currentUserSystemPrompt === getDynamicSystemPrompt()) ? getDynamicSystemPrompt() : currentUserSystemPrompt;
+    if (!appSettingsModalOverlay || !systemPromptInput || !temperatureInput || !temperatureValueDisplay || !geminiApiKeyInput || !geminiApiKeyDisplay) return;
+    
+    const promptToDisplay = (localStorage.getItem(SYSTEM_PROMPT_STORAGE_KEY) === null && currentUserSystemPrompt === getDynamicSystemPrompt()) 
+        ? getDynamicSystemPrompt() 
+        : currentUserSystemPrompt;
+    
     systemPromptInput.value = promptToDisplay;
     temperatureInput.value = currentTemperature.toFixed(1);
     temperatureValueDisplay.textContent = `(${currentTemperature.toFixed(1)})`;
+
+    // Carregar a chave de API
+    geminiApiKeyInput.value = localStorage.getItem(GEMINI_API_KEY_STORAGE) || '';
+    
+    // Resetar o estado de visibilidade da chave
+    geminiApiKeyInput.style.display = 'block';
+    geminiApiKeyDisplay.style.display = 'none';
+    if(apiKeyToggleBtn) apiKeyToggleBtn.innerHTML = '<i class="fas fa-eye"></i>';
+
     settingsFeedback.textContent = '';
     appSettingsModalOverlay.classList.add('active');
 }
 
+
 function hideAppSettingsModal() { if (appSettingsModalOverlay) appSettingsModalOverlay.classList.remove('active'); }
 
 function handleSaveAppSettings() {
-    if (!systemPromptInput || !temperatureInput || !settingsFeedback) return;
+    if (!systemPromptInput || !temperatureInput || !settingsFeedback || !geminiApiKeyInput) return;
+    
     const newPrompt = systemPromptInput.value;
     const newTemp = parseFloat(temperatureInput.value);
-    if (isNaN(newTemp) || newTemp < 0 || newTemp > 1.0) {
-        settingsFeedback.textContent = 'Temperatura inválida. Use um valor entre 0.0 e 1.0.';
+
+    // Lidar com a alteração da Chave de API
+    const newApiKey = geminiApiKeyInput.value.trim();
+    const oldApiKey = localStorage.getItem(GEMINI_API_KEY_STORAGE) || '';
+
+    let apiKeyChanged = false;
+    if (newApiKey !== oldApiKey) {
+        // Usamos um confirm() do navegador, mas com texto informativo
+        const confirmationMessage = `Você tem certeza de que deseja alterar sua chave de API do Google AI?\n\n(Caso não tenha uma chave, você pode criar uma em aistudio.google.com/apikey)`;
+        const confirmed = confirm(confirmationMessage);
+        
+        if (confirmed) {
+            if (newApiKey) {
+                localStorage.setItem(GEMINI_API_KEY_STORAGE, newApiKey);
+            } else {
+                localStorage.removeItem(GEMINI_API_KEY_STORAGE);
+            }
+            apiKeyChanged = true;
+        } else {
+            // Se o usuário cancelar, reverter o valor do input para a chave antiga
+            geminiApiKeyInput.value = oldApiKey;
+        }
+    }
+    
+    if (isNaN(newTemp) || newTemp < 0 || newTemp > 2.0) {
+        settingsFeedback.textContent = 'Temperatura inválida. Use um valor entre 0.0 e 2.0.';
         settingsFeedback.style.color = '#ff6b6b';
         return;
     }
+
     currentUserSystemPrompt = newPrompt;
     currentTemperature = newTemp;
     saveAppSettingsToLocalStorage();
+    
     settingsFeedback.textContent = 'Configurações salvas!';
     settingsFeedback.style.color = '#4CAF50';
-    setTimeout(() => { hideAppSettingsModal(); }, 1000);
+    
+    setTimeout(() => {
+        hideAppSettingsModal();
+        if (apiKeyChanged) {
+            loadModels(); // Recarrega os modelos se a chave da API foi alterada
+        }
+    }, 1000);
 }
+
 
 let deferredPrompt;
 
@@ -1393,6 +1444,28 @@ function setupEventListeners() {
         cancelAppSettingsBtn.addEventListener('click', hideAppSettingsModal);
     }
 
+    if (apiKeyToggleBtn && geminiApiKeyInput && geminiApiKeyDisplay) {
+        apiKeyToggleBtn.addEventListener('click', () => {
+            // Se o input estiver visível, vamos para a visualização mascarada
+            if (geminiApiKeyInput.style.display !== 'none') {
+                const key = geminiApiKeyInput.value;
+                if (key && key.length > 6) {
+                    const maskedKey = `${key.substring(0, 3)}*》(ﾉﾟДﾟ)ﾉ《*${key.substring(key.length - 3)}`;
+                    geminiApiKeyDisplay.textContent = maskedKey;
+                } else {
+                    geminiApiKeyDisplay.textContent = key; // Mostra a chave curta inteira
+                }
+                geminiApiKeyInput.style.display = 'none';
+                geminiApiKeyDisplay.style.display = 'block';
+                apiKeyToggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+            } else { // Se a visualização mascarada estiver ativa, voltamos para o input
+                geminiApiKeyDisplay.style.display = 'none';
+                geminiApiKeyInput.style.display = 'block';
+                apiKeyToggleBtn.innerHTML = '<i class="fas fa-eye"></i>';
+            }
+        });
+    }
+
     if (appSettingsModalOverlay) {
         appSettingsModalOverlay.addEventListener('click', (e) => {
             if (e.target === appSettingsModalOverlay) {
@@ -1474,7 +1547,6 @@ async function loadModels() {
 
     if (apiConfig.provider === 'ollama') {
         try {
-            // LINHA CORRIGIDA AQUI:
             const response = await fetch(`${apiConfig.url}/api/tags`);
             if (!response.ok) {
                  let errorText = response.statusText;
@@ -1517,7 +1589,7 @@ async function loadModels() {
         } catch (error) {
             modelSelect.innerHTML = `<option value="" disabled selected>Falha Ollama (${error.message.substring(0,30)}...)</option>`;
         }
-    } else { // Lógica para GEMINI (inalterada)
+    } else { // Lógica para GEMINI
         if (!apiConfig.apiKey) {
              modelSelect.innerHTML = `<option value="" disabled selected>Chave API Gemini pendente</option>`;
              return;
@@ -1562,7 +1634,6 @@ async function loadModels() {
     }
 }
 
-// ... (todo o seu código existente) ...
 
 // Adicione este bloco no final para registrar o Service Worker
 if ('serviceWorker' in navigator) {

@@ -1410,9 +1410,6 @@ body {
 
 .app-settings-content .setting-item {
     margin-bottom: 15px;
-    /* display: flex;
-    align-items: center;
-    gap: 10px; */
 }
 .app-settings-content .setting-item label {
     display: block;
@@ -1423,6 +1420,7 @@ body {
 
 .app-settings-content select,
 .app-settings-content input[type="text"],
+.app-settings-content input[type="password"],
 .app-settings-content input[type="number"],
 .app-settings-content textarea {
     background-color: var(--input-bg);
@@ -1432,9 +1430,54 @@ body {
     border-radius: 4px;
     outline: none;
     font-size: 0.9rem;
-    width: 100%; /* Make inputs take full width of their container */
-    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    width: 100%;
+    box-sizing: border-box;
 }
+
+.api-key-input-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+#gemini-api-key-input {
+    padding-right: 40px; /* Espaço para o botão */
+}
+
+#gemini-api-key-display {
+    display: none; /* Escondido por padrão */
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: monospace;
+    letter-spacing: 1px;
+    padding-right: 40px;
+}
+
+
+#api-key-toggle-btn {
+    position: absolute;
+    right: 1px;
+    top: 1px;
+    bottom: 1px;
+    background: transparent;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    padding: 0 12px;
+    font-size: 1rem;
+    outline: none;
+}
+#api-key-toggle-btn:hover {
+    color: var(--text-color);
+}
+
+
 .app-settings-content textarea {
     min-height: 150px;
     resize: vertical;
@@ -1453,6 +1496,21 @@ body {
 .app-settings-content .setting-item-inline label {
     margin-bottom: 0; /* Remove bottom margin for inline label */
     flex-shrink: 0; /* Prevent label from shrinking */
+}
+
+.api-key-helper-text {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.8rem;
+    color: var(--text-light);
+}
+
+.api-key-helper-text a {
+    color: var(--accent-color);
+    text-decoration: none;
+}
+.api-key-helper-text a:hover {
+    text-decoration: underline;
 }
 
 
@@ -1798,47 +1856,6 @@ pre {
     border-radius: 3px;
 }
 
-@media (max-width: 768px) {
-    body {
-        height: 100vh;
-        height: -webkit-fill-available;
-    }
-
-    .main-content {
-        height: 100vh;
-        height: -webkit-fill-available;
-        display: flex;
-        flex-direction: column;
-    }
-
-    .chat-container {
-        flex: 1;
-        position: relative;
-        overflow: hidden;
-    }
-
-    .scroll-container {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .messages {
-        padding-bottom: 20px;
-    }
-
-    .bottom-bar {
-        position: relative;
-        background-color: var(--bg-color);
-        padding: 16px 20px;
-        padding-bottom: calc(16px + env(safe-area-inset-bottom));
-        z-index: 10;
-    }
-}
 /* Estilo para o input de edição do título do chat */
 .chat-title-edit-input {
     flex-grow: 1;
@@ -1901,7 +1918,6 @@ pre {
 }
 
 
-/* Este media query garante que as regras só se apliquem em telas de celular. */
 @media (max-width: 768px) {
 
     /* 1. Trava a rolagem do fundo da página. */
@@ -1949,5 +1965,8 @@ pre {
         overflow-y: auto; /* Permite a rolagem APENAS aqui dentro. */
         -webkit-overflow-scrolling: touch; /* Melhora a fluidez da rolagem em iOS. */
     }
-}
 
+    .bottom-bar {
+        padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    }
+}
