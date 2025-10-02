@@ -1920,14 +1920,10 @@ pre {
 
 @media (max-width: 768px) {
 
-    /* 1. Trava a rolagem do fundo da página. */
     body, html {
         overflow: hidden !important;
     }
 
-    /* 2. FORÇA o container principal a ser um quadro de tela cheia,
-          e o transforma em um container flexível vertical.
-          Esta é a base de tudo. */
     .main-content {
         position: fixed !important;
         top: 0;
@@ -1941,19 +1937,16 @@ pre {
         flex-direction: column !important;
     }
 
-    /* 3. Garante que o cabeçalho e o rodapé tenham altura fixa e nunca sejam espremidos. */
     .top-bar, .bottom-bar {
         flex-shrink: 0;
-        position: relative; /* Remove 'sticky' ou outros posicionamentos que possam atrapalhar. */
+        position: relative; 
     }
 
-    /* 4. FAZ A MÁGICA: O container do chat é forçado a crescer e ocupar
-          TODO o espaço que sobra entre o cabeçalho e o rodapé. */
     .chat-container {
-        flex-grow: 1; /* Essencial: faz o elemento crescer. */
-        overflow: hidden; /* Importante: esconde qualquer conteúdo que transborde. */
-        position: relative; /* Necessário para o .scroll-container funcionar. */
-        min-height: 0; /* Um truque crucial para o flexbox não quebrar. */
+        flex-grow: 1;
+        overflow: hidden;
+        position: relative;
+        min-height: 0;
     }
 
     .scroll-container {
@@ -1968,5 +1961,59 @@ pre {
 
     .bottom-bar {
         padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    }
+}
+
+.connection-toast {
+    position: fixed;
+    top: 60px; /* altura do header */
+    left: 50%;
+    transform: translate(-50%, -100%); /* inicia escondido acima do ponto de destino */
+    
+    background: rgba(30, 30, 30, 0.92); 
+    color: #fff;
+    padding: 14px 22px;
+    font-size: 0.95em;
+    font-weight: 500;
+    z-index: 9999;
+    
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(6px);
+    
+    width: auto;
+    min-width: 260px;
+    max-width: 90%;
+    
+    transition: transform 0.4s ease, opacity 0.3s ease;
+    opacity: 0;
+}
+
+/* Quando visível */
+.connection-toast:not(.hidden) {
+    transform: translate(-50%, 0); /* final da animação */
+    opacity: 1;
+}
+
+/* Estados */
+.connection-toast.online {
+    background: rgba(39, 174, 96, 0.92); /* Verde */
+}
+
+.connection-toast.offline {
+    background: rgba(192, 57, 43, 0.92); /* Vermelho */
+}
+
+/* Ajustes mobile */
+@media (max-width: 480px) {
+    .connection-toast {
+        top: 60px;
+        font-size: 0.9em;
+        padding: 12px 18px;
     }
 }

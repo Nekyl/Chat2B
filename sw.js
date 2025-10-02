@@ -8,6 +8,7 @@ const FILES_TO_CACHE = [
   '/Chat/style.css',
   '/Chat/script.js',
   '/Chat/prompt.js',
+  '/Chat/history.js',
   '/Chat/manifest.json',
   '/Chat/icon-192.png',
   '/Chat/icon-512.png',

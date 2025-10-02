@@ -28,9 +28,9 @@
             <button id="mobile-menu-btn" class="mobile-menu-btn top-bar-action-btn" title="Menu">
                 <i class="fas fa-bars"></i>
             </button>
-            <input type="text" id="api-source-input" class="server-url-input" placeholder="URL Ollama ou 'gemini'" value="Ollama">
+            <input type="text" id="api-source-input" class="server-url-input" placeholder="URL Ollama ou 'gemini'" value="Gemini">
             <select id="model-select" class="model-selector">
-                <option value="llama2">Carregando modelos...</option>
+                <option value="gemini-2.5-flash">Carregando modelos...</option>
             </select>
             <button id="install-pwa-btn" class="top-bar-action-btn" title="Instalar Aplicativo" style="display: none;">
                 <i class="fas fa-download"></i>
@@ -211,7 +211,10 @@ style="
             textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
         });
         </script>
-    <script src="prompt.js">prompt</script>
-    <script src="script.js">script.js</script>
+    <script type="module" src="script.js"></script>
 </body>
+<div id="connection-status-toast" class="connection-toast hidden">
+    <i class="fas fa-wifi"></i>
+    <span id="connection-status-text"></span>
+</div>
 </html>
