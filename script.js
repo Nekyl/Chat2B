@@ -643,6 +643,34 @@ async function fetchBotResponse() {
             }
         }
 
+        // Processa qualquer dado restante no buffer após o fim do stream.
+        if (buffer.trim()) {
+            let chunkContent = null;
+            if (apiConfig.provider === 'ollama') {
+                try {
+                    const data = JSON.parse(buffer);
+                    chunkContent = data.message?.content;
+                } catch (e) { /* Ignora erro de parse no buffer final */ }
+            } else { // Gemini
+                if (buffer.startsWith('data: ')) {
+                    try {
+                        const data = JSON.parse(buffer.substring(6));
+                        chunkContent = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+                    } catch (e) { /* Ignora erro de parse no buffer final */ }
+                }
+            }
+            // Atualiza a mensagem uma última vez se houver conteúdo final.
+            if (chunkContent) {
+                if (!responseDiv) {
+                    typingAnimation.style.display = 'none';
+                    responseDiv = addMessage("", false, true); 
+                }
+                botResponseContent += chunkContent;
+                const contentElement = responseDiv.querySelector(".content-text");
+                if (contentElement) contentElement.innerHTML = marked.parse(botResponseContent);
+            }
+        }
+
         if (botResponseContent) {
             currentAssistantMessage.content = botResponseContent;
             if (!currentAssistantMessage.timestamp) currentAssistantMessage.timestamp = Date.now();
@@ -670,7 +698,6 @@ async function fetchBotResponse() {
 
     } catch (error) {
         console.error(`Erro na comunicação com ${apiConfig.provider}:`, error);
-        // A GRANDE MUDANÇA: Chamar a nova função em caso de erro.
         displayErrorWithRetry(`Não consegui conectar: (${error.message || "Erro desconhecido"})`);
     } finally {
         typingAnimation.style.display = "none";
