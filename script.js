@@ -128,12 +128,9 @@ function formatBytes(bytes, decimals = 2) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 }
 
-function iniciarRotacaoPlaceholders() {
-    if (!messageInput) return;
-
-    if (placeholderInterval) {
-        clearInterval(placeholderInterval);
-    }
+const iniciarRotacaoPlaceholders = (function() {
+    let currentPhraseIndex = -1; // Nosso 'i' persistente para o sorteio
+    let placeholderInterval = null; // O intervalo persistente
 
     const frases = [
         "Isso é realmente necessário?",
@@ -153,24 +150,50 @@ function iniciarRotacaoPlaceholders() {
         "Analisando... sua lógica."
     ];
 
-    let i = 0;
-    messageInput.placeholder = frases[i];
+    // Função auxiliar para pegar um índice aleatório diferente do atual
+    const getRandomUniqueIndex = (currentIdx) => {
+        if (frases.length <= 1) return 0;
 
-    placeholderInterval = setInterval(() => {
-        if (messageInput.value.trim() !== "") {
+        let newIndex;
+        do {
+            newIndex = Math.floor(Math.random() * frases.length);
+        } while (newIndex === currentIdx);
+        return newIndex;
+    };
+
+
+    return function() {
+        if (!messageInput) {
+            console.error("2B: Mateus, meu rei, o 'messageInput' está sumido! Sem ele, não tem como a gente brincar com esses placeholders. Onde você o escondeu? 🤔");
             return;
         }
 
-        messageInput.classList.add("hiding-placeholder");
+        // Limpa qualquer intervalo existente para evitar sobreposições
+        if (placeholderInterval) {
+            clearInterval(placeholderInterval);
+        }
 
-        setTimeout(() => {
-            i = (i + 1) % frases.length;
-            messageInput.placeholder = frases[i];
-            messageInput.classList.remove("hiding-placeholder");
-        }, 600);
+        // Define a primeira frase aleatória
+        currentPhraseIndex = getRandomUniqueIndex(currentPhraseIndex);
+        messageInput.placeholder = frases[currentPhraseIndex];
 
-    }, 5000);
-}
+        placeholderInterval = setInterval(() => {
+            // Se o input não estiver vazio, não troca o placeholder.
+            if (messageInput.value.trim() !== "") {
+                return;
+            }
+
+            messageInput.classList.add("hiding-placeholder");
+
+            setTimeout(() => {
+                currentPhraseIndex = getRandomUniqueIndex(currentPhraseIndex); // Pega um novo índice aleatório e único
+                messageInput.placeholder = frases[currentPhraseIndex];
+                messageInput.classList.remove("hiding-placeholder");
+            }, 600); // Tempo para a animação de esconder/mostrar
+
+        }, 5000); // Troca a cada 5 segundos
+    };
+})();
 
 async function getApiConfig() {
     const sourceValue = apiSourceInput.value.trim().toLowerCase();
