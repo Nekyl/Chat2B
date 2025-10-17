@@ -1968,7 +1968,7 @@ pre {
     position: fixed;
     top: 60px; /* altura do header */
     left: 50%;
-    transform: translate(-50%, -100%); /* inicia escondido acima do ponto de destino */
+    transform: translateX(-50%); /* inicia escondido acima do ponto de destino */
     
     background: rgba(30, 30, 30, 0.92); 
     color: #fff;
