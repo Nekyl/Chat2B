@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat 2B</title>
     <link rel="manifest" href="manifest.json">
-    
+    <!-- Links atualizados para os arquivos CSS locais -->
     <link rel="stylesheet" href="local_assets/css/all.min.css">
     <link rel="stylesheet" href="style.css" type="text/css" media="all" />
-
+    <!-- Highlight.js CSS (tema escuro) local -->
     <link rel="stylesheet" href="local_assets/css/dracula.min.css">
     </head>
 <body>
@@ -137,6 +137,20 @@
         <div id="app-settings-modal" class="modal">
             <h2 style="color: white;"><i class="fas fa-cogs"></i> Configurações de 2B</h2>
             <div class="app-settings-content">
+
+                <div id="api-key-setup-guide" style="display: none; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: left;">
+                    <h4 style="margin-top: 0; color: white;"><i class="fas fa-magic"></i> Bem-vindo(a) ao Chat 2B!</h4>
+                    <p style="font-size: 0.9em; margin-bottom: 15px;">Para usar a inteligência do Gemini, é necessária uma chave de API do Google AI. É um processo rápido e gratuito.</p>
+                    <div class="modal-actions" style="justify-content: center; padding: 0;">
+                        <button id="guide-have-key-btn" class="btn btn-secondary">
+                            <i class="fas fa-key"></i> Já tenho uma chave
+                        </button>
+                        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" id="guide-create-key-btn" class="btn btn-primary">
+                            <i class="fas fa-external-link-alt"></i> Criar chave (grátis)
+                        </a>
+                    </div>
+                </div>
+
                 <div class="setting-item">
                     <label for="system-prompt-input">Prompt do Sistema:</label>
                     <textarea id="system-prompt-input" rows="8"></textarea>
@@ -187,7 +201,7 @@ style="
                 <button id="cancel-app-settings-btn" class="btn btn-secondary">
                     <i class="fas fa-times"></i> Cancelar
                 </button>
-                <button id="save-app-settings-btn" class="btn btn-primary"> <!-- Changed to btn-primary -->
+                <button id="save-app-settings-btn" class="btn btn-primary">
                     <i class="fas fa-save"></i> Salvar 
                 </button>
             </div>
@@ -195,7 +209,7 @@ style="
     </div>
     <!-- Fim do Modal de Configurações -->
 
-
+    <!-- Scripts atualizados para os arquivos JS locais -->
     <script src="local_assets/js/marked.min.js"></script>
     <script src="local_assets/js/highlight.min.js"></script>
     
