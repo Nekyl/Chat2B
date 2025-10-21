@@ -1,9 +1,10 @@
 // Define um nome de cache único e com versão para forçar a atualização
-const CACHE_NAME = 'chat2b-cache-v7';
+// ATUALIZADO: Versão incrementada para v9 para incluir a nova fonte de compatibilidade.
+const CACHE_NAME = 'chat2b-cache-v9';
 
-// Lista de TODOS os arquivos que o Chat precisa, com CAMINHOS ABSOLUTOS
+// Lista de TODOS os arquivos que o Chat precisa, com base na sua estrutura de pastas.
 const FILES_TO_CACHE = [
-  // Arquivos do próprio App
+  // --- Arquivos da raiz do App ('/Chat/') ---
   '/Chat/index.html',
   '/Chat/style.css',
   '/Chat/script.js',
@@ -13,11 +14,21 @@ const FILES_TO_CACHE = [
   '/Chat/icon-192.png',
   '/Chat/icon-512.png',
 
-  // Arquivos de bibliotecas externas
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css',
-  'https://cdnjs.cloudflare.com/ajax/libs/marked/4.0.2/marked.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/base16/dracula.min.css'
+  // --- Arquivos de bibliotecas locais (/Chat/local_assets/) ---
+  
+  // CSS
+  '/Chat/local_assets/css/all.min.css',
+  '/Chat/local_assets/css/dracula.min.css',
+
+  // JS
+  '/Chat/local_assets/js/marked.min.js',
+  '/Chat/local_assets/js/highlight.min.js',
+
+  // FONTES (Lista completa da sua pasta webfonts)
+  '/Chat/local_assets/webfonts/fa-brands-400.woff2',
+  '/Chat/local_assets/webfonts/fa-regular-400.woff2',
+  '/Chat/local_assets/webfonts/fa-solid-900.woff2',
+  '/Chat/local_assets/webfonts/fa-v4compatibility.woff2`
 ];
 
 // Evento 'install': Guarda os arquivos no cache
@@ -26,6 +37,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[SW Chat] Cacheando arquivos essenciais');
+      // O addAll faz um fetch para cada URL e armazena o resultado. Se um falhar, a instalação toda falha.
       return cache.addAll(FILES_TO_CACHE);
     })
   );
@@ -50,31 +62,24 @@ self.addEventListener('activate', (event) => {
 
 // Evento 'fetch': Responde com o cache e tenta atualizar em segundo plano (Stale-While-Revalidate)
 self.addEventListener('fetch', (event) => {
-  // Ignora requisições que não são GET, pois não podem ser cacheadas.
   if (event.request.method !== 'GET') {
     return;
   }
 
   event.respondWith(
     caches.open(CACHE_NAME).then(async (cache) => {
-      // 1. Tenta pegar do cache primeiro para uma resposta rápida e offline.
       const cachedResponse = await cache.match(event.request);
 
-      // 2. Em paralelo, busca uma versão nova na rede.
       const fetchedResponsePromise = fetch(event.request).then((networkResponse) => {
-        // Se a busca na rede funcionou, atualiza o cache com a nova versão.
         if (networkResponse.ok) {
           cache.put(event.request, networkResponse.clone());
         }
         return networkResponse;
       }).catch(() => {
-        // O fetch falhou (servidor offline, sem rede).
-        // Isso não é um erro crítico, pois o cache pode já ter sido servido.
-        // Se não havia cache, a falha será propagada.
+        // A rede falhou, mas não tem problema se já tivermos uma resposta do cache.
       });
 
-      // 3. Retorna a resposta do cache se existir,
-      // ou aguarda a resposta da rede caso o arquivo ainda não esteja no cache.
+      // Retorna a resposta do cache se existir, senão, aguarda a resposta da rede.
       return cachedResponse || fetchedResponsePromise;
     })
   );
