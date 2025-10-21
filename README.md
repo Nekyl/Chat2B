@@ -21,11 +21,11 @@ Para obter a melhor experiência e extrair o máximo da persona customizada, o u
 
 ## ⚙️ Getting Started
 
-Este projeto é 100% client-side, sem necessidade de build steps. Você pode **[clicar aqui](https://nekyl.github.io/2B-Chat/)** para testar a versão online agora mesmo, ou seguir os passos abaixo para rodar localmente.
+Este projeto é 100% client-side, sem necessidade de build steps. Você pode **[clicar aqui](https://nekyl.github.io/Chat2B/)** para testar a versão online agora mesmo, ou seguir os passos abaixo para rodar localmente.
 
 1.  **Clone o repositório:**
     ```bash
-    git clone https://github.com/Nekyl/2B-Chat.git
+    git clone https://github.com/Nekyl/Chat2B.git
     ```
 
 2.  **Abra o `index.html`:**
@@ -43,3 +43,4 @@ Ao abrir o aplicativo, configure sua fonte de API no campo de texto superior:
 *   **Para usar Ollama:**
     1.  Certifique-se de que sua instância do Ollama está em execução.
     2.  Digite `ollama` para usar o endereço padrão (`http://localhost:11434`) ou insira a URL completa do seu servidor Ollama.
+
