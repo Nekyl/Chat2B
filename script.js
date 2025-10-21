@@ -981,7 +981,7 @@ function handleSaveAppSettings() {
     let apiKeyChanged = false;
     if (newApiKey !== oldApiKey) {
         // Usamos um confirm() do navegador, mas com texto informativo
-        const confirmationMessage = `Você tem certeza de que deseja alterar sua chave de API do Google AI?\n\n(Caso não tenha uma chave, você pode criar uma em aistudio.google.com/apikey)`;
+        const confirmationMessage = `Você tem certeza de que deseja alterar sua chave de API do Google AI?`;
         const confirmed = confirm(confirmationMessage);
         
         if (confirmed) {
