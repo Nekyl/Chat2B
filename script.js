@@ -1341,6 +1341,7 @@ const shouldScrollToBottom = () => {
 };
 
 function switchToChat(chatId) {
+    sessionStorage.setItem("session_active_chat_id", chatId);
     localStorage.setItem("last_active_chat_id", chatId);
     if (!allChats[chatId]) { createNewChat(); return; }
     currentChatId = chatId;
@@ -1489,40 +1490,55 @@ if ("serviceWorker" in navigator) {
 
 function loadChatsFromLocalStorage() {
     const storedData = localStorage.getItem(STORAGE_KEY);
+    const sessionChatId = sessionStorage.getItem("session_active_chat_id");
+
     if (storedData) {
-        const parsedData = JSON.parse(storedData);
-        allChats = parsedData.allChats || {};
-        currentChatId = parsedData.currentChatId;
-
-        // Garante que a estrutura de chat esteja correta para o history.js
-        for (const id in allChats) {
-            if (!allChats[id].recentMessages) {
-                allChats[id].recentMessages = allChats[id].messages || [];
-                delete allChats[id].messages; // Remove a propriedade antiga
+        try {
+            const parsedData = JSON.parse(storedData);
+            allChats = parsedData.allChats || {};
+            // Validação e migração de dados antigos
+            for (const id in allChats) {
+                if (!allChats[id] || typeof allChats[id] !== 'object') {
+                    delete allChats[id]; continue;
+                }
+                if (!allChats[id].recentMessages) {
+                    allChats[id].recentMessages = allChats[id].messages || [];
+                    delete allChats[id].messages;
+                }
+                if (!allChats[id].summarizedContext) {
+                    allChats[id].summarizedContext = "";
+                }
             }
-            if (!allChats[id].summarizedContext) {
-                allChats[id].summarizedContext = "";
-            }
-        }
-
-        // Inicializa o módulo de histórico com os dados carregados
-        initializeHistory(allChats, getApiConfig, saveChatsToLocalStorage);
-
-        if (!currentChatId || !allChats[currentChatId]) {
-            const chatIds = Object.keys(allChats);
-            if (chatIds.length > 0) {
-                currentChatId = chatIds.sort((a, b) => allChats[b].timestamp - allChats[a].timestamp)[0];
-            } else {
-                createNewChat();
-            }
+        } catch (e) {
+            console.error("Falha ao analisar os chats salvos. Começando do zero.", e);
+            allChats = {};
         }
     } else {
-        createNewChat();
+        allChats = {};
     }
+    
+    initializeHistory(allChats, getApiConfig, saveChatsToLocalStorage);
+    
+    let chatToLoadId = null;
+    
+    if (sessionChatId && allChats[sessionChatId]) {
+        chatToLoadId = sessionChatId;
+    }
+    else {
+        const newChatId = generateChatId();
+        allChats[newChatId] = {
+            id: newChatId,
+            title: "Nova Conversa...",
+            recentMessages: [],
+            summarizedContext: "",
+            timestamp: Date.now()
+        };
+        chatToLoadId = newChatId;
+    }
+    currentChatId = chatToLoadId;
+    saveChatsToLocalStorage();
     updateChatList();
-    if (currentChatId) {
-        createNewChat();
-    }
+    switchToChat(currentChatId);
 }
 
 function saveChatsToLocalStorage() {
