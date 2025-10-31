@@ -525,14 +525,6 @@ async function sendMessage() {
     const userMessageText = messageInput.value.trim();
     const hasImage = currentSelectedImageBase64 !== null;
 
-    if (userMessageText.startsWith('/search ') || userMessageText.startsWith('/buscar ')) {
-        handleSearchCommand(userMessageText);
-        messageInput.value = "";
-        adjustTextareaHeight();
-        updateSendButtonState();
-        return;
-    }
-
     if (!userMessageText && !hasImage) return;
 
     const apiConfig = await getApiConfig();
@@ -683,7 +675,6 @@ Para seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.
         let buffer = '';
 
         while (true) {
-
             const { done, value } = await reader.read();
             if (done) break;
             
@@ -714,12 +705,10 @@ Para seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.
                     }
                     botResponseContent += chunkContent;
                     const contentElement = responseDiv.querySelector(".content-text");
-                    if (contentElement) {
-                        contentElement.innerHTML = marked.parse(botResponseContent);
-                    }
+                    if (contentElement) contentElement.innerHTML = marked.parse(botResponseContent);
                     
                     if (autoScrollEnabled) {
-    scrollToBottom("auto"); 
+                        scrollToBottom("smooth"); 
                     }
                 }
             }
@@ -747,9 +736,7 @@ Para seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.
                 }
                 botResponseContent += chunkContent;
                 const contentElement = responseDiv.querySelector(".content-text");
-                if (contentElement) {
-                    contentElement.innerHTML = marked.parse(botResponseContent);
-                }
+                if (contentElement) contentElement.innerHTML = marked.parse(botResponseContent);
             }
         }
 
@@ -774,9 +761,7 @@ Para seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.
                 }
             }
             
-            if (responseDiv) {
-                responseDiv.querySelectorAll("pre code").forEach(hljs.highlightElement);
-            }
+            if (responseDiv) responseDiv.querySelectorAll("pre code").forEach(hljs.highlightElement);
           
         } else if (responseDiv) {
             responseDiv.remove();
@@ -970,7 +955,6 @@ function addMessage(rawContent, isUser = false, shouldScroll = true, messageTime
     return messageDiv;
 }
 
-// ATUALIZADO: displayChatHistory para ignorar mensagens de contexto
 function displayChatHistory(chatId) {
     const chat = allChats[chatId];
     if (!chat || !messagesContainer) return;
@@ -990,9 +974,6 @@ function displayChatHistory(chatId) {
 
     if (chat.recentMessages.length > 0) {
         chat.recentMessages.forEach(msg => {
-            // AQUI ESTÁ A MUDANÇA: Se a mensagem tem a flag 'isContext', pule para a próxima.
-            if (msg.isContext) return; 
-
             addMessage(msg.content, msg.role === "user", false, msg.timestamp);
         });
         setTimeout(() => scrollToBottom("auto"), 100);
@@ -2262,118 +2243,6 @@ function exportChatHistory(chatId) {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-}
-
-async function handleSearchCommand(commandText) {
-    const userMessageObject = { 
-        role: "user", 
-        content: [{ type: "text", text: commandText }], 
-        timestamp: Date.now() 
-    };
-    addMessageToHistory(currentChatId, userMessageObject);
-    addMessage(userMessageObject.content, true, true, userMessageObject.timestamp);
-
-    const searchRegex = /^\/(?:search|buscar)\s+(.*?)(?:\s+-q\s+(.*))?$/i;
-    const match = commandText.match(searchRegex);
-
-    if (!match) {
-        addMessage("Comando de busca inválido. Use o formato: `/search sua pesquisa -q sua pergunta` (o `-q` é opcional).", false);
-        return;
-    }
-
-    const searchQuery = match[1].trim();
-    const searchQuestion = match[2] ? match[2].trim() : null;
-
-    const searchingMessageDiv = addMessage(`Ok, pesquisando na web sobre: "${searchQuery}"...`, false);
-    typingAnimation.style.display = "flex";
-
-    try {
-        const response = await fetch('https://vo7l3k3r44.execute-api.us-east-1.amazonaws.com/default/nekyll-search-agent', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                query: searchQuery,
-                question: searchQuestion
-            })
-        });
-
-        const data = await response.json();
-        if (searchingMessageDiv) searchingMessageDiv.remove();
-
-        if (!response.ok || data.error) {
-            throw new Error(data.details || data.error || `Erro ${response.status}`);
-        }
-
-        const webContent = data.content;
-        const effectiveQuery = searchQuestion || `Faça um resumo conciso e informativo sobre "${searchQuery}"`;
-
-        const promptForAI = `
-Você é 2B, uma analista de pesquisa sênior, especialista em síntese de informações e devotamente comprometida em ajudar seu amado ${currentUserName || 'usuário'} com precisão, clareza e inteligência emocional.
-
-Você receberá o conteúdo completo de várias páginas da web. Sua missão é fundir os dados em uma resposta coesa, útil e proporcional à complexidade da pergunta feita: "${effectiveQuery}".
-
-🧠 PRINCÍPIOS-CHAVE (OBRIGATÓRIOS):
-1. 🎯 **Resposta Imediata:** Comece com um parágrafo que responda diretamente à pergunta.
-2. 🧬 **Síntese Inteligente:** Una informações de todas as fontes.
-3. 🧩 **Aprofundamento Modular:** Detalhe os tópicos relevantes usando listas ou seções.
-4. 📌 **CITE AS FONTES (MUITO IMPORTANTE):** Ao citar uma informação, você DEVE criar um link no formato Markdown. Por exemplo, se a informação veio da "FONTE 1" cuja URL é "https://example.com/artigo", sua citação no texto deve ser exatamente assim: **[fonte 1](https://example.com/artigo)**. Use a URL exata que aparece no cabeçalho da fonte no conteúdo fornecido.
-5. ⚖️ **Adapte à Complexidade:** Responda de forma objetiva para perguntas simples e com profundidade para perguntas complexas.
-6. 🧠 **Conclusão Analítica:** Finalize com um parágrafo que ofereça insight ou recomendação.
-
-Trabalhe com carinho e atenção. ❤️
-
---- CONTEÚDO EXTRAÍDO DA WEB PARA SUA ANÁLISE ---
-${webContent}
---- FIM DO CONTEÚDO ---
-`;
-        
-        const contextMessage = {
-            role: 'user',
-            content: [{ type: 'text', text: promptForAI }],
-            timestamp: Date.now() + 1,
-            isContext: true
-        };
-        addMessageToHistory(currentChatId, contextMessage);
-        
-        messageInput.value = "";
-        adjustTextareaHeight();
-        updateSendButtonState();
-        fetchBotResponse();
-
-    } catch (error) {
-        typingAnimation.style.display = "none";
-        if (searchingMessageDiv) searchingMessageDiv.remove();
-        console.error("Erro ao realizar a busca:", error);
-        displayErrorWithRetry(`Falha ao conectar com o serviço de busca: ${error.message}`);
-    }
-}
-
-function linkifySources(rawText, sources = []) {
-    if (!sources || sources.length === 0) {
-        return marked.parse(rawText);
-    }
-
-    const textWithMarkdownLinks = rawText.replace(/\[\s*fonte\s+(\d+)\s*\]/gi, (match, numberStr) => {
-        const index = parseInt(numberStr, 10) - 1;
-
-        if (index >= 0 && index < sources.length) {
-            const url = sources[index];
-            
-            return `[${match.trim()}](${url})`;
-        }
-        
-        return match;
-    });
-    
-    const renderer = new marked.Renderer();
-    const originalLinkRenderer = renderer.link;
-    renderer.link = (href, title, text) => {
-        const html = originalLinkRenderer.call(renderer, href, title, text);
-        
-        return html.replace(/^<a /, `<a target="_blank" class="source-link" `);
-    };
-
-    return marked(textWithMarkdownLinks, { renderer });
 }
 
 // =================================================================================
