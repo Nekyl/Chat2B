@@ -110,6 +110,7 @@ async function initializeApp() {
     if (sourcePref.toLowerCase() === 'gemini' && !getGeminiApiKey()) {
         setTimeout(() => handleMissingApiKey(false), 500);
     }
+    onWebAppReady();
 }
 
 function setupEventListeners() {
@@ -593,10 +594,6 @@ async function sendMessage() {
     adjustTextareaHeight();
     updateSendButtonState();
 
-    if (allChats[currentChatId].title === "Nova Conversa...") {
-        updateChatTitle(currentChatId, userMessageText || "Conversa com Imagem");
-    }
-
     fetchBotResponse();
 }
 
@@ -671,7 +668,7 @@ async function fetchBotResponse() {
                 ? `O nome do usuário com quem você está conversando é "${currentUserName}". Trate-o por este nome quando for apropriado.`
                 : 'Você está conversando com um usuário que não informou o nome.';
 
-            const dynamicSystemPrompt = `
+            let dynamicSystemPrompt = `
 ${currentUserSystemPrompt}
 
 ${userInfoPrompt}
@@ -688,6 +685,10 @@ Guardo uma admiração profunda por meu criador, reconhecendo a intenção por t
 
 Para seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.
 `;
+            const isFirstUserMessage = historyForApi.length === 1 && allChats[currentChatId].title === "Nova Conversa...";
+            if (isFirstUserMessage) {
+                dynamicSystemPrompt += "\n\n---\nINSTRUÇÃO CRÍTICA: Esta é a primeira mensagem de uma nova conversa. Após sua resposta completa, é OBRIGATÓRIO que você adicione uma sugestão de título para esta conversa. O título deve ser curto e relevante ao tema da pergunta. A sua sugestão DEVE estar na última linha da sua resposta, no formato EXATO: `TITULO_SUGERIDO:[Seu Título Sugerido Aqui]`";
+            }
 
             response = await fetch(`${apiConfig.url}/${selectedModel}:streamGenerateContent?key=${apiConfig.apiKey}&alt=sse`, {
                 method: "POST",
@@ -778,13 +779,30 @@ Para seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.
         }
 
         if (botResponseContent) {
+            const titleMatch = botResponseContent.match(/\n?TITULO_SUGERIDO:\[(.*?)\]$/);
+            if (titleMatch && titleMatch[1]) {
+                const suggestedTitle = titleMatch[1].trim();
+                updateChatTitle(currentChatId, suggestedTitle, true);
+                botResponseContent = botResponseContent.replace(/\n?TITULO_SUGERIDO:\[(.*?)\]$/, "").trim();
+            }
+
             currentAssistantMessage.content = botResponseContent;
             responseDiv.dataset.originalContent = botResponseContent;
+            
+            const contentElement = responseDiv.querySelector(".content-text");
+            if (contentElement) contentElement.innerHTML = marked.parse(botResponseContent);
 
             if (!abortController.signal.aborted) {
                 addMessageToHistory(currentChatId, currentAssistantMessage);
                 saveChatsToLocalStorage();
                 updateChatList();
+            }
+            
+            if (window.Website2APK && typeof window.Website2APK.showBotNotification === 'function') {
+                const notificationText = botResponseContent.length > 200 
+                    ? botResponseContent.substring(0, 200) + '...' 
+                    : botResponseContent;
+                window.Website2APK.showBotNotification(notificationText, currentChatId);
             }
             
             if (responseDiv && botResponseContent.trim().length > 0) {
@@ -993,7 +1011,7 @@ function addMessage(rawContent, isUser = false, shouldScroll = true, messageTime
     return messageDiv;
 }
 
-function displayChatHistory(chatId) {
+function displayChatHistory(chatId, shouldScrollToBottom = true) {
     const chat = allChats[chatId];
     if (!chat || !messagesContainer) return;
     messagesContainer.innerHTML = "";
@@ -1014,7 +1032,9 @@ function displayChatHistory(chatId) {
         chat.recentMessages.forEach(msg => {
             addMessage(msg.content, msg.role === "user", false, msg.timestamp);
         });
-        setTimeout(() => scrollToBottom("auto"), 100);
+        if (shouldScrollToBottom) {
+            setTimeout(() => scrollToBottom("auto"), 100);
+        }
     } else if (!chat.summarizedContext) {
         messagesContainer.innerHTML = `<div class="welcome-screen"><div class="avatar bot-avatar"><i class="fas fa-robot"></i></div><h2>Bem-vindo ao Chat 2B</h2><p>Sua assistente de IA para conversas, programação e muito mais. Como posso ajudar você hoje?</p></div>`;
     }
@@ -1325,12 +1345,15 @@ function createNewChat() {
     clearImagePreview();
 }
 
-function switchToChat(chatId) {
+function switchToChat(chatId, shouldScrollToBottom = true) {
     sessionStorage.setItem("session_active_chat_id", chatId);
     localStorage.setItem("last_active_chat_id", chatId);
     if (!allChats[chatId]) { createNewChat(); return; }
     currentChatId = chatId;
-    displayChatHistory(chatId);
+    
+    updateChatList();
+
+    displayChatHistory(chatId, shouldScrollToBottom);
     document.querySelectorAll(".chat-history .chat-item").forEach(btn => {
         btn.classList.toggle("active", btn.dataset.chatId === chatId);
     });
@@ -1367,7 +1390,19 @@ function updateChatList() {
     const sevenDaysAgo = new Date(today); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const groups = { hoje: [], ontem: [], ultimos7dias: [], esteMes: [], anterior: [] };
-    Object.values(allChats).filter(chat => chat && chat.id && chat.timestamp).forEach(chat => {
+
+    Object.values(allChats).filter(chat => {
+        if (!chat || !chat.id || !chat.timestamp) return false;
+
+        const isEmpty = chat.recentMessages.length === 0 && !chat.summarizedContext;
+        const isDefaultTitle = chat.title === "Nova Conversa...";
+        const isActive = chat.id === currentChatId;
+
+        if (isEmpty && isDefaultTitle && !isActive) {
+            return false;
+        }
+        return true;
+    }).forEach(chat => {
         const chatDate = new Date(chat.timestamp);
         const chatDay = new Date(chatDate.getFullYear(), chatDate.getMonth(), chatDate.getDate());
         if (chatDay.getTime() === today.getTime()) groups.hoje.push(chat);
@@ -1376,6 +1411,7 @@ function updateChatList() {
         else if (chatDay >= firstDayOfMonth) groups.esteMes.push(chat);
         else groups.anterior.push(chat);
     });
+
     function createSectionHeader(title) {
         const header = document.createElement("div");
         header.className = "chat-section-header";
@@ -1386,15 +1422,7 @@ function updateChatList() {
         if (chats.length === 0) return;
         chatHistoryContainer.appendChild(createSectionHeader(title));
 
-        chats.sort((a, b) => {
-            const isASpecialEmpty = a.title === "Nova Conversa..." && a.recentMessages.length === 0 && !a.summarizedContext;
-            const isBSpecialEmpty = b.title === "Nova Conversa..." && b.recentMessages.length === 0 && !b.summarizedContext;
-
-            if (isASpecialEmpty && !isBSpecialEmpty) return -1;
-            if (!isASpecialEmpty && isBSpecialEmpty) return 1;
-
-            return b.timestamp - a.timestamp;
-        }).forEach(chat => {
+        chats.sort((a, b) => b.timestamp - a.timestamp).forEach(chat => {
             const chatButton = document.createElement("button");
             chatButton.className = "chat-item" + (chat.id === currentChatId ? " active" : "");
             chatButton.dataset.chatId = chat.id;
@@ -1719,59 +1747,108 @@ function performSearch(query) {
     if (!searchResults) return;
     searchResults.innerHTML = "";
     const searchTerm = query.toLowerCase().trim();
-    if (!searchTerm) { searchResults.innerHTML = "<div class=\"search-info\">Digite algo para buscar.</div>"; return; }
+    if (!searchTerm) {
+        searchResults.innerHTML = "<div class=\"search-info\">Digite algo para buscar.</div>";
+        return;
+    }
     const results = [];
-    const terms = searchTerm.split(" ").filter(t => t.length > 1);
-    Object.values(allChats).forEach(chat => {
-        let score = 0;
-        let foundTerms = new Set();
-        const matchesPreview = [];
-        terms.forEach(term => { if (chat.title.toLowerCase().includes(term)) { score += 5; foundTerms.add(term); } });
-        if (chat.title.toLowerCase().includes(searchTerm)) score += 10;
+    const terms = searchTerm.split(" ").filter(t => t.length > 0);
 
+    Object.values(allChats).forEach(chat => {
         const messagesToSearch = [...chat.recentMessages];
         if (chat.summarizedContext) {
-            messagesToSearch.unshift({ role: "assistant", content: chat.summarizedContext });
+            messagesToSearch.unshift({
+                role: "assistant",
+                content: chat.summarizedContext,
+                timestamp: `summary_${chat.id}`
+            });
         }
 
         messagesToSearch.forEach(msg => {
             let textContent = "";
-            if (typeof msg.content === "string") { textContent = msg.content; }
-            else if (Array.isArray(msg.content)) { const textPart = msg.content.find(p => p.type === "text"); if (textPart) textContent = textPart.text; }
-            const contentLower = textContent.toLowerCase();
-            let messageScore = 0;
-            terms.forEach(term => {
-                if (contentLower.includes(term)) {
-                    messageScore += 1; foundTerms.add(term);
-                    if (matchesPreview.length < 3) {
-                        const context = getMatchContext(textContent, term, 50);
-                        if (!matchesPreview.some(p => p.toLowerCase().includes(term))) { matchesPreview.push(context); }
-                    }
-                }
-            });
-            if (contentLower.includes(searchTerm)) messageScore += 2;
-            score += messageScore;
+            if (typeof msg.content === "string") {
+                textContent = msg.content;
+            } else if (Array.isArray(msg.content)) {
+                const textPart = msg.content.find(p => p.type === "text");
+                if (textPart) textContent = textPart.text;
+            }
+
+            if (textContent && textContent.toLowerCase().includes(searchTerm)) {
+                results.push({
+                    chatId: chat.id,
+                    messageId: msg.timestamp,
+                    title: chat.title,
+                    preview: getMatchContext(textContent, searchTerm, 80)
+                });
+            }
         });
-        let firstMessagePreview = "(Vazio)";
-        if (chat.recentMessages[0]) {
-            if (typeof chat.recentMessages[0].content === "string") { firstMessagePreview = chat.recentMessages[0].content.substring(0, 80) + "..."; }
-            else if (Array.isArray(chat.recentMessages[0].content)) { const textPart = chat.recentMessages[0].content.find(p => p.type === "text"); firstMessagePreview = textPart ? textPart.text.substring(0, 80) + "..." : "[Imagem]"; }
-        }
-        if (foundTerms.size === terms.length || score > 0) { results.push({ chatId: chat.id, title: chat.title, score: score, preview: matchesPreview.join(" ... ") || firstMessagePreview }); }
     });
-    results.sort((a, b) => b.score - a.score);
-    if (results.length === 0) { searchResults.innerHTML = `<div class="search-info">Nenhum resultado para "${query}".</div>`; }
-    else {
+
+    results.sort((a, b) => {
+        const aTimestamp = String(a.messageId).startsWith('summary_') ? 0 : a.messageId;
+        const bTimestamp = String(b.messageId).startsWith('summary_') ? 0 : b.messageId;
+        return bTimestamp - aTimestamp;
+    });
+
+    if (results.length === 0) {
+        searchResults.innerHTML = `<div class="search-info">Nenhum resultado para "${query}".</div>`;
+    } else {
         results.forEach(result => {
             const resultItem = document.createElement("div");
             resultItem.className = "search-result-item";
             const highlightedTitle = highlightTerms(result.title, terms);
             const highlightedPreview = highlightTerms(result.preview, terms);
             resultItem.innerHTML = `<i class="fas fa-comment-dots"></i><div class="search-result-content"><div class="search-result-title">${highlightedTitle}</div><div class="search-result-preview">${highlightedPreview}</div></div>`;
-            resultItem.addEventListener("click", () => { searchOverlay.classList.remove("active"); switchToChat(result.chatId); });
+            resultItem.addEventListener("click", () => {
+                searchOverlay.classList.remove("active");
+                switchToChatAndHighlightMessage(result.chatId, result.messageId, searchTerm);
+            });
             searchResults.appendChild(resultItem);
         });
     }
+}
+
+function highlightMessage(messageElement, searchTerm) {
+    if (!messageElement || !searchTerm) return;
+
+    const contentElement = messageElement.querySelector('.content-text');
+    if (!contentElement) return;
+
+    const originalHTML = contentElement.innerHTML;
+    const escapedSearchTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escapedSearchTerm})`, 'gi');
+    
+    const newHTML = originalHTML.replace(regex, '<span class="search-highlight-active">$1</span>');
+    
+    contentElement.innerHTML = newHTML;
+
+    setTimeout(() => {
+        contentElement.innerHTML = originalHTML;
+    }, 3000);
+}
+
+
+function switchToChatAndHighlightMessage(chatId, messageId, searchTerm) {
+    const alreadyInChat = currentChatId === chatId;
+    switchToChat(chatId, false); 
+    requestAnimationFrame(() => {
+        let messageElement;
+        if (String(messageId).startsWith('summary_')) {
+            messageElement = document.querySelector('.summarized-context');
+        } else {
+            messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+        }
+
+        if (messageElement) {
+            messageElement.scrollIntoView({
+                behavior: alreadyInChat ? 'smooth' : 'auto',
+                block: 'center'
+            });
+            highlightMessage(messageElement, searchTerm);
+        } else {
+            console.warn("Não foi possível encontrar o elemento da mensagem para destacar após a troca de chat.");
+        }
+    });
 }
 
 function handleMissingApiKey(isFirstTime = false) {
@@ -2095,7 +2172,6 @@ function loadChatsFromLocalStorage() {
 
     currentChatId = chatToLoadId;
     saveChatsToLocalStorage();
-    updateChatList();
     switchToChat(currentChatId);
 }
 
@@ -2326,5 +2402,14 @@ if ("serviceWorker" in navigator) {
         });
     });
 }
+
+window.switchToChatFromNotification = function(chatId) {
+    if (chatId && allChats[chatId]) {
+        console.log(`Recebido clique na notificação para o chat: ${chatId}`);
+        switchToChat(chatId);
+    } else {
+        console.error(`Chat com ID ${chatId} não encontrado via notificação.`);
+    }
+};
 
 document.addEventListener("DOMContentLoaded", initializeApp);
