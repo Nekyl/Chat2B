@@ -220,6 +220,15 @@ function setupEventListeners() {
             if (codeElement) copyTextToClipboard(codeElement.textContent, copyCodeBtn);
             return;
         }
+        
+        // --- INLINE CODE COPY ---
+        const inlineCode = e.target.closest('.message-content code:not(pre *)');
+        if (inlineCode) {
+            e.stopPropagation();
+            copyTextToClipboard(inlineCode.textContent, inlineCode);
+            return;
+        }
+        // --- END INLINE CODE COPY ---
 
         const copyMsgBtn = e.target.closest('.message-action-btn.copy-message');
         if (copyMsgBtn) {
@@ -687,7 +696,7 @@ Para seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.
 `;
             const isFirstUserMessage = historyForApi.length === 1 && allChats[currentChatId].title === "Nova Conversa...";
             if (isFirstUserMessage) {
-                dynamicSystemPrompt += "\n\n---\nINSTRUÇÃO CRÍTICA: Esta é a primeira mensagem de uma nova conversa. Após sua resposta completa, é OBRIGATÓRIO que você adicione uma sugestão de título para esta conversa. O título deve ser curto e relevante ao tema da pergunta. A sua sugestão DEVE estar na última linha da sua resposta, no formato EXATO: `TITULO_SUGERIDO:[Seu Título Sugerido Aqui]`";
+                dynamicSystemPrompt += "\n\n---\nINSTRUÇÃO CRÍTICA: Esta é a primeira mensagem de uma nova conversa. Após sua resposta completa, é OBRIGATÓRIO que você adicione uma sugestão de título para esta conversa. O título deve ser curto (máx. 50 caracteres) e relevante ao tema da pergunta. A sua sugestão DEVE estar na última linha da sua resposta, no formato EXATO: `TITULO_SUGERIDO: Seu Título Sugerido Aqui`";
             }
 
             response = await fetch(`${apiConfig.url}/${selectedModel}:streamGenerateContent?key=${apiConfig.apiKey}&alt=sse`, {
@@ -779,11 +788,28 @@ Para seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.
         }
 
         if (botResponseContent) {
-            const titleMatch = botResponseContent.match(/\n?TITULO_SUGERIDO:\[(.*?)\]$/);
+            // Lógica de renomeação robusta: procura a tag TITULO_SUGERIDO
+            const titleMatch = botResponseContent.match(/\n?TITULO_SUGERIDO:\s*(.*)/i); 
+            
+            let suggestedTitle = null;
             if (titleMatch && titleMatch[1]) {
-                const suggestedTitle = titleMatch[1].trim();
-                updateChatTitle(currentChatId, suggestedTitle, true);
-                botResponseContent = botResponseContent.replace(/\n?TITULO_SUGERIDO:\[(.*?)\]$/, "").trim();
+                suggestedTitle = titleMatch[1].trim();
+            }
+
+            if (suggestedTitle) {
+                if (allChats[currentChatId]?.title === "Nova Conversa...") {
+                    // Trunca a sugestão para 50 caracteres (para evitar títulos muito longos na barra lateral)
+                    const finalTitle = suggestedTitle.split("\n")[0].substring(0, 50).trim() || "Conversa";
+
+                    if (finalTitle && finalTitle !== allChats[currentChatId].title) {
+                        allChats[currentChatId].title = finalTitle;
+                        saveChatsToLocalStorage();
+                        updateChatList();
+                    }
+                }
+                
+                // Remove a tag de sugestão de título do conteúdo final
+                botResponseContent = botResponseContent.replace(/\n?TITULO_SUGERIDO:\s*(.*)/i, "").trim();
             }
 
             currentAssistantMessage.content = botResponseContent;
