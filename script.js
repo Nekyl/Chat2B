@@ -442,11 +442,6 @@ function processFiles(files) {
     Array.from(files).forEach(file => {
         if (currentMediaAttachments.length >= MAX_FILES) return;
 
-        if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-            alert(`O arquivo "${file.name}" excede o limite de ${MAX_SIZE_MB}MB.`);
-            return;
-        }
-
         if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
             return;
         }
