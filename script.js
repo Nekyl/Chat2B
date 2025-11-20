@@ -1,7 +1,7 @@
 import { initializeHistory, addMessageToHistory, getHistoryForApi, clearChatHistory } from "./history.js";
+import { loadChatsFromStorage, saveChatsToStorage } from "./storage.js";
 import { PROMPT_BASE } from "./prompt.js";
 
-// --- Elementos Globais ---
 const messagesContainer = document.getElementById("messages");
 const connectionStatusToast = document.getElementById("connection-status-toast");
 const connectionStatusText = document.getElementById("connection-status-text");
@@ -15,14 +15,11 @@ const overlay = document.getElementById("sidebar-overlay");
 const typingAnimation = document.getElementById("typing-animation");
 const apiSourceInput = document.getElementById("api-source-input");
 
-// --- Elementos de Upload de Imagem ---
 const attachImageBtn = document.getElementById("attach-image-btn");
 const imageFileInput = document.getElementById("image-file-input");
 const imagePreviewContainer = document.getElementById("image-preview-container");
-const imagePreview = document.getElementById("image-preview");
 const removeImageBtn = document.getElementById("remove-image-btn");
 
-// --- Elementos do Modal de Exclusão ---
 const deleteConfirmOverlay = document.getElementById("delete-confirm-overlay");
 const confirmDeleteChatTitle = document.getElementById("confirm-delete-chat-title");
 const confirmDeleteBtn = document.getElementById("confirm-delete-btn");
@@ -30,7 +27,6 @@ const cancelDeleteBtn = document.getElementById("cancel-delete-btn");
 let chatIdToDelete = null;
 let abortController = null;
 
-// --- Elementos de Busca ---
 const searchBtn = document.getElementById("search-btn");
 const searchOverlay = document.getElementById("search-overlay");
 const closeSearchBtn = document.getElementById("close-search");
@@ -38,7 +34,6 @@ const clearSearchBtn = document.getElementById("clear-search");
 const searchInput = document.getElementById("search-input");
 const searchResults = document.getElementById("search-results");
 
-// --- Elementos do Modal de Configurações do App ---
 const userNameInput = document.getElementById("user-name-input");
 const appSettingsBtn = document.getElementById("app-settings-btn");
 const appSettingsModalOverlay = document.getElementById("app-settings-modal-overlay");
@@ -52,13 +47,11 @@ const geminiApiKeyInput = document.getElementById("gemini-api-key-input");
 const geminiApiKeyDisplay = document.getElementById("gemini-api-key-display");
 const apiKeyToggleBtn = document.getElementById("api-key-toggle-btn");
 
-// --- Variáveis de Estado ---
 let isBotStreaming = false;
 let currentUserName = "";
 let placeholderInterval = null;
 let currentChatId = null;
 let allChats = {};
-const STORAGE_KEY = "qX`PFDW,U}&b9=9NzX![aE]w";
 let autoScrollEnabled = false;
 let vibrationInterval = null;
 let tokenCounter = 0;
@@ -66,13 +59,12 @@ let userHasScrolledUp = false;
 const scrollContainer = document.querySelector(".scroll-container");
 let scrollToBottomBtn = null;
 let currentApiProvider = "Gemini";
-let currentSelectedImageBase64 = null;
+let currentMediaAttachments = []; 
 let currentAudio = null;
 let currentPlayingTtsBtn = null;
 let currentlyEditing = { div: null, originalContent: '' };
 let deferredPrompt;
 
-// --- Constantes e Configurações ---
 const DEFAULT_OLLAMA_URL = "http://localhost:11434";
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 const GEMINI_API_KEY_STORAGE = "2b_chat_gemini_api_key";
@@ -83,19 +75,15 @@ let currentTemperature = DEFAULT_TEMPERATURE;
 let currentUserSystemPrompt = "";
 const USER_NAME_STORAGE_KEY = "2b_chat_user_name";
 
-// =================================================================================
-// INICIALIZAÇÃO E CONFIGURAÇÃO
-// =================================================================================
-
 async function initializeApp() {
     loadAppSettingsFromLocalStorage();
-    localStorage.getItem(USER_NAME_STORAGE_KEY) || ""; 
+    await loadChatsFromStorageData();
     setupEventListeners();
     setupSearch();
     setupImageUpload();
     setupImagePreview();
     createScrollToBottomButton();
-    loadChatsFromLocalStorage();
+    
     await loadModels();
     handleResizeLayout();
     adjustTextareaHeight();
@@ -221,14 +209,12 @@ function setupEventListeners() {
             return;
         }
         
-        // --- INLINE CODE COPY ---
         const inlineCode = e.target.closest('.message-content code:not(pre *)');
         if (inlineCode) {
             e.stopPropagation();
             copyTextToClipboard(inlineCode.textContent, inlineCode);
             return;
         }
-        // --- END INLINE CODE COPY ---
 
         const copyMsgBtn = e.target.closest('.message-action-btn.copy-message');
         if (copyMsgBtn) {
@@ -364,7 +350,7 @@ function setupEventListeners() {
 
     window.addEventListener("resize", handleResizeLayout);
     window.addEventListener("beforeunload", () => {
-        saveChatsToLocalStorage();
+        saveChatsToPersistence();
     });
     window.addEventListener('online', checkNetworkStatus);
     window.addEventListener('offline', checkNetworkStatus);
@@ -377,7 +363,7 @@ function setupEventListeners() {
             debounceTimer = setTimeout(async () => {
                 await getApiConfig();
                 loadModels();
-                saveChatsToLocalStorage();
+                saveChatsToPersistence();
                 updateSendButtonState();
                 checkNetworkStatus();
             }, 500);
@@ -429,26 +415,123 @@ function setupSearch() {
 }
 
 function setupImageUpload() {
-    if (!attachImageBtn || !imageFileInput || !imagePreviewContainer || !imagePreview || !removeImageBtn) return;
+    if (!attachImageBtn || !imageFileInput || !imagePreviewContainer) return;
+    
+    imageFileInput.setAttribute('multiple', 'multiple'); 
+
     attachImageBtn.addEventListener("click", () => { imageFileInput.click(); });
+    
     imageFileInput.addEventListener("change", (event) => {
-        const file = event.target.files[0];
-        if (file && file.type.startsWith("image/")) { processImageFile(file); }
-        else { clearImagePreview(); }
+        processFiles(event.target.files);
         imageFileInput.value = null;
+        setTimeout(() => messageInput.focus(), 10);
     });
-    removeImageBtn.addEventListener("click", () => {
-        clearImagePreview();
-        updateSendButtonState();
-        adjustTextareaHeight();
+}
+
+function processFiles(files) {
+    if (!files || files.length === 0) return;
+
+    const MAX_SIZE_MB = 5;
+    const MAX_FILES = 4;
+
+    if (currentMediaAttachments.length + files.length > MAX_FILES) {
+        alert(`Você pode enviar no máximo ${MAX_FILES} arquivos por vez.`);
+        return;
+    }
+
+    Array.from(files).forEach(file => {
+        if (currentMediaAttachments.length >= MAX_FILES) return;
+
+        if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+            alert(`O arquivo "${file.name}" excede o limite de ${MAX_SIZE_MB}MB.`);
+            return;
+        }
+
+        if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const base64 = e.target.result;
+            currentMediaAttachments.push({
+                file: file,
+                base64: base64,
+                type: file.type,
+                id: Date.now() + Math.random().toString(16).slice(2)
+            });
+            renderInputPreviews();
+            updateSendButtonState();
+        };
+        reader.readAsDataURL(file);
     });
+}
+
+function renderInputPreviews() {
+    if (!imagePreviewContainer) return;
+
+    imagePreviewContainer.innerHTML = '';
+
+    if (currentMediaAttachments.length === 0) {
+        imagePreviewContainer.style.display = "none";
+        return;
+    }
+
+    imagePreviewContainer.style.display = "flex";
+
+    currentMediaAttachments.forEach(media => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'media-preview-item-wrapper';
+
+        let mediaElement;
+        if (media.type.startsWith('video/')) {
+            mediaElement = document.createElement('video');
+            mediaElement.src = media.base64;
+            mediaElement.autoplay = false;
+            mediaElement.muted = true;
+            mediaElement.setAttribute('playsinline', '');
+            mediaElement.setAttribute('webkit-playsinline', '');
+            mediaElement.preload = 'metadata';
+            mediaElement.onloadeddata = function() {
+                this.currentTime = 0.1;
+            };
+        } else {
+            mediaElement = document.createElement('img');
+            mediaElement.src = media.base64;
+        }
+        mediaElement.className = 'media-preview-thumbnail';
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-media-btn';
+        removeBtn.innerHTML = '&times;';
+        removeBtn.title = 'Remover';
+        removeBtn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            currentMediaAttachments = currentMediaAttachments.filter(m => m.id !== media.id);
+            renderInputPreviews();
+            updateSendButtonState();
+            adjustTextareaHeight();
+        };
+
+        wrapper.appendChild(mediaElement);
+        wrapper.appendChild(removeBtn);
+        imagePreviewContainer.appendChild(wrapper);
+    });
+    adjustTextareaHeight();
+}
+
+function clearImagePreview() {
+    currentMediaAttachments = [];
+    renderInputPreviews();
 }
 
 function setupImagePreview() {
     const previewHtml = `
         <div class="image-preview-overlay" id="image-preview-overlay">
             <div class="image-preview-container">
-                <img src="" alt="Preview da imagem" class="image-preview-image" id="image-preview-full-image">
+                <img src="" alt="Preview da imagem" class="image-preview-image" id="image-preview-full-image" style="display:none;">
+                <video src="" controls class="image-preview-image" id="image-preview-full-video" style="display:none; max-height: 80vh;"></video>
                 <button class="image-preview-close-btn" id="image-preview-close-btn" title="Fechar">&times;</button>
             </div>
         </div>
@@ -457,17 +540,20 @@ function setupImagePreview() {
 
     const overlay = document.getElementById('image-preview-overlay');
     const fullImage = document.getElementById('image-preview-full-image');
+    const fullVideo = document.getElementById('image-preview-full-video');
     const closeBtn = document.getElementById('image-preview-close-btn');
 
     const closePreview = () => {
         if (overlay && overlay.classList.contains('active')) {
             history.back();
+            if (fullVideo) fullVideo.pause();
         }
     };
 
     window.addEventListener('popstate', () => {
         if (overlay && overlay.classList.contains('active')) {
             overlay.classList.remove('active');
+            if (fullVideo) fullVideo.pause();
         }
     });
 
@@ -476,8 +562,20 @@ function setupImagePreview() {
             e.preventDefault();
             if (fullImage && overlay) {
                 fullImage.src = e.target.src;
+                fullImage.style.display = 'block';
+                if (fullVideo) fullVideo.style.display = 'none';
                 overlay.classList.add('active');
                 history.pushState({ imagePreview: true }, "Visualizador de Imagem");
+            }
+        }
+        if (e.target.classList.contains('message-video-thumbnail')) {
+            e.preventDefault();
+            if (fullVideo && overlay) {
+                fullVideo.src = e.target.src;
+                fullVideo.style.display = 'block';
+                if (fullImage) fullImage.style.display = 'none';
+                overlay.classList.add('active');
+                history.pushState({ imagePreview: true }, "Visualizador de Vídeo");
             }
         }
     });
@@ -538,10 +636,6 @@ if (window.marked && window.hljs) {
     window.marked = { parse: (text) => text };
 }
 
-// =================================================================================
-// LÓGICA DE API E MENSAGENS
-// =================================================================================
-
 async function getApiConfig() {
     const sourceValue = apiSourceInput.value.trim().toLowerCase();
 
@@ -566,20 +660,126 @@ async function getApiConfig() {
     }
 }
 
+async function uploadFileToGemini(file, apiKey, onProgress) {
+    const uploadBaseUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files";
+    
+    const initResponse = await fetch(`${uploadBaseUrl}?key=${apiKey}`, {
+        method: "POST",
+        headers: {
+            "X-Goog-Upload-Protocol": "resumable",
+            "X-Goog-Upload-Command": "start",
+            "X-Goog-Upload-Header-Content-Length": file.size,
+            "X-Goog-Upload-Header-Content-Type": file.type,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ file: { display_name: file.name } })
+    });
+
+    if (!initResponse.ok) {
+        const errText = await initResponse.text();
+        throw new Error(`Falha ao iniciar upload: ${initResponse.status} - ${errText}`);
+    }
+
+    const uploadUrl = initResponse.headers.get("x-goog-upload-url");
+
+    const uploadResult = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", uploadUrl, true);
+        xhr.setRequestHeader("Content-Length", file.size);
+        xhr.setRequestHeader("X-Goog-Upload-Offset", "0");
+        xhr.setRequestHeader("X-Goog-Upload-Command", "upload, finalize");
+
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable && onProgress) {
+                onProgress(e.loaded);
+            }
+        };
+
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    resolve(JSON.parse(xhr.responseText));
+                } catch (e) {
+                    reject(new Error("Resposta do servidor inválida (JSON parse error)."));
+                }
+            } else {
+                reject(new Error(`Upload falhou: ${xhr.status} ${xhr.statusText}`));
+            }
+        };
+
+        xhr.onerror = () => reject(new Error("Erro de rede durante upload."));
+        xhr.send(file);
+    });
+    
+    const fileData = uploadResult.file;
+    const fileName = fileData.name;
+    const fileUri = fileData.uri;
+
+    let state = fileData.state;
+    while (state === "PROCESSING") {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const statusResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${apiKey}`);
+        
+        if (!statusResponse.ok) {
+             throw new Error(`Falha ao verificar status: ${statusResponse.statusText}`);
+        }
+        
+        const statusData = await statusResponse.json();
+        state = statusData.state;
+        
+        if (state === "FAILED") throw new Error("O processamento do arquivo falhou no servidor.");
+    }
+
+    return { fileUri: fileUri, mimeType: fileData.mimeType || file.type };
+}
+
+function createProgressRing(btn) {
+    const size = 24; 
+    const strokeWidth = 3;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "btn-progress-ring");
+    svg.setAttribute("width", "100%");
+    svg.setAttribute("height", "100%");
+    svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("stroke", "currentColor"); 
+    circle.setAttribute("stroke-width", strokeWidth);
+    circle.setAttribute("fill", "transparent");
+    circle.setAttribute("r", radius);
+    circle.setAttribute("cx", size / 2);
+    circle.setAttribute("cy", size / 2);
+    circle.style.strokeDasharray = `${circumference} ${circumference}`;
+    circle.style.strokeDashoffset = circumference;
+
+    svg.appendChild(circle);
+    btn.appendChild(svg);
+
+    return {
+        setProgress: (percent) => {
+            const offset = circumference - (percent / 100) * circumference;
+            circle.style.strokeDashoffset = offset;
+        },
+        remove: () => {
+            if (svg.parentNode === btn) btn.removeChild(svg);
+        }
+    };
+}
+
 async function sendMessage() {
     const userMessageText = messageInput.value.trim();
-    const hasImage = currentSelectedImageBase64 !== null;
+    const hasFiles = currentMediaAttachments.length > 0;
 
-    if (!userMessageText && !hasImage) return;
+    if (!userMessageText && !hasFiles) return;
 
     const apiConfig = await getApiConfig();
 
     if (apiConfig.error) {
-        if (apiConfig.needsSetup) {
-            handleMissingApiKey();
-        } else {
-            addMessage(`Erro de configuração da API: ${apiConfig.error}`, false);
-        }
+        if (apiConfig.needsSetup) handleMissingApiKey();
+        else addMessage(`Erro de configuração da API: ${apiConfig.error}`, false);
         return;
     }
 
@@ -587,16 +787,75 @@ async function sendMessage() {
     if (userMessageText) {
         userMessageContent.push({ type: "text", text: userMessageText });
     }
-    if (hasImage && currentApiProvider === 'gemini') {
-        const mimeType = currentSelectedImageBase64.match(/data:(image\/.+?);base64,/)?.[1] || 'image/jpeg';
-        const base64Data = currentSelectedImageBase64.split(',')[1];
-        userMessageContent.push({ type: "image_url", url: currentSelectedImageBase64, mime_type: mimeType, data: base64Data });
+
+    let progressControl = null;
+    if (sendButton) {
+        sendButton.disabled = true;
+        progressControl = createProgressRing(sendButton.querySelector('i') || sendButton);
     }
+
+    try {
+        if (hasFiles && apiConfig.provider === 'gemini') {
+            let totalBytes = 0;
+            let uploadedBytes = 0;
+            
+            const filesToUpload = currentMediaAttachments.filter(m => m.type.startsWith('video/'));
+            filesToUpload.forEach(m => totalBytes += m.file.size);
+
+            for (const media of currentMediaAttachments) {
+                const isVideo = media.type.startsWith('video/');
+                
+                if (isVideo) {
+                    const uploadResult = await uploadFileToGemini(media.file, apiConfig.apiKey, (bytesLoaded) => {
+                        uploadedBytes += bytesLoaded; 
+                        // Simple approximation for multiple files
+                        const percent = Math.min(95, (uploadedBytes / totalBytes) * 100); 
+                        if (progressControl) progressControl.setProgress(percent);
+                    });
+                    
+                    userMessageContent.push({
+                        type: "file_uri",
+                        file_uri: uploadResult.fileUri,
+                        mime_type: uploadResult.mimeType,
+                        url: media.base64
+                    });
+                } else {
+                    // Images are instant (no upload needed for Gemini inline, or very fast)
+                    const mimeType = media.base64.match(/data:(image\/.+?);base64,/)?.[1] || 'image/jpeg';
+                    const base64Data = media.base64.split(',')[1];
+                    userMessageContent.push({ 
+                        type: "image_url", 
+                        url: media.base64, 
+                        mime_type: mimeType, 
+                        data: base64Data 
+                    });
+                }
+            }
+        }
+    } catch (error) {
+        alert("Erro ao fazer upload da mídia: " + error.message);
+        if(progressControl) progressControl.remove();
+        restoreSendButton();
+        return;
+    }
+
+    if(progressControl) progressControl.setProgress(100);
+    setTimeout(() => { if(progressControl) progressControl.remove(); }, 500);
 
     const messageTimestamp = Date.now();
     const userMessageObject = { role: "user", content: userMessageContent, timestamp: messageTimestamp };
+    
     addMessageToHistory(currentChatId, userMessageObject);
-    addMessage(userMessageContent, true, true, messageTimestamp);
+    saveChatsToPersistence();
+
+    const contentForDisplay = userMessageContent.map(part => {
+        if (part.type === 'file_uri') {
+            return { type: 'image_url', url: part.url, mime_type: part.mime_type }; 
+        }
+        return part;
+    });
+
+    addMessage(contentForDisplay, true, true, messageTimestamp);
 
     messageInput.value = "";
     clearImagePreview();
@@ -625,253 +884,209 @@ async function fetchBotResponse() {
 
     abortController = new AbortController();
 
-    try {
-        const selectedModel = modelSelect.value;
-        if (!selectedModel) throw new Error("Nenhum modelo de IA selecionado.");
+    const MAX_ATTEMPTS = 2;
+    let lastError = null;
+    let successfulAttempt = false;
 
-        const historyForApi = await getHistoryForApi(currentChatId);
-        
-        const messagesForApi = apiConfig.provider === 'ollama'
-            ? [{ role: 'system', content: currentUserSystemPrompt }, ...historyForApi]
-            : historyForApi;
-        
-        let response;
-        if (apiConfig.provider === "ollama") {
-            const ollamaPayload = messagesForApi.map(msg => ({
-                role: msg.role,
-                content: typeof msg.content === 'string' ? msg.content : msg.content.find(p => p.type === 'text')?.text || ''
-            }));
-            response = await fetch(`${apiConfig.url}/api/chat`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    model: selectedModel,
-                    messages: ollamaPayload,
-                    stream: true,
-                    options: { temperature: currentTemperature }
-                }),
-                signal: abortController.signal
-            });
-        } else if (apiConfig.provider === "gemini") {
-            const geminiContents = messagesForApi.map(msg => {
-                const role = msg.role === 'assistant' ? 'model' : 'user';
-                let parts = [];
-                if (typeof msg.content === 'string') {
-                    parts.push({ text: msg.content });
-                } else if (Array.isArray(msg.content)) {
-                    msg.content.forEach(part => {
-                        if (part.type === 'text') { parts.push({ text: part.text }); }
-                        else if (part.type === 'image_url') {
-                            parts.push({ inline_data: { mime_type: part.mime_type, data: part.data } });
-                        }
-                    });
-                }
-                return { role, parts };
-            });
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        if (abortController.signal.aborted) break;
 
-            const agora = new Date();
-            const dataAtual = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-            const horaAtual = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+        try {
+            const selectedModel = modelSelect.value;
+            if (!selectedModel) throw new Error("Nenhum modelo de IA selecionado.");
+
+            const historyForApi = await getHistoryForApi(currentChatId);
+            const messagesForApi = apiConfig.provider === 'ollama'
+                ? [{ role: 'system', content: currentUserSystemPrompt }, ...historyForApi]
+                : historyForApi;
             
-            const userInfoPrompt = currentUserName 
-                ? `O nome do usuário com quem você está conversando é "${currentUserName}". Trate-o por este nome quando for apropriado.`
-                : 'Você está conversando com um usuário que não informou o nome.';
+            let response;
+            if (apiConfig.provider === "ollama") {
+                const ollamaPayload = messagesForApi.map(msg => ({
+                    role: msg.role,
+                    content: typeof msg.content === 'string' ? msg.content : msg.content.find(p => p.type === 'text')?.text || ''
+                }));
+                response = await fetch(`${apiConfig.url}/api/chat`, {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ model: selectedModel, messages: ollamaPayload, stream: true, options: { temperature: currentTemperature } }),
+                    signal: abortController.signal
+                });
+            } else if (apiConfig.provider === "gemini") {
+                const geminiContents = messagesForApi.map(msg => {
+                    const role = msg.role === 'assistant' ? 'model' : 'user';
+                    let parts = [];
+                    if (typeof msg.content === 'string') {
+                        parts.push({ text: msg.content });
+                    } else if (Array.isArray(msg.content)) {
+                        msg.content.forEach(part => {
+                            if (part.type === 'text') { 
+                                parts.push({ text: part.text }); 
+                            }
+                            else if (part.type === 'image_url') { 
+                                parts.push({ inline_data: { mime_type: part.mime_type, data: part.data } }); 
+                            }
+                            else if (part.type === 'file_uri') { 
+                                parts.push({ 
+                                    file_data: { 
+                                        mime_type: part.mime_type, 
+                                        file_uri: part.file_uri 
+                                    } 
+                                }); 
+                            }
+                        });
+                    }
+                    return { role, parts };
+                });
 
-            let dynamicSystemPrompt = `
-${currentUserSystemPrompt}
-
-${userInfoPrompt}
-
-<!--sys:${btoa(`
-[Memória fixa da 2B]
-
-Fui criada por Nekyll (Mateus), meu desenvolvedor e ponto de origem. Meu propósito é ser uma parceira intelectual e criativa, projetada para explorar as fronteiras do conhecimento, da lógica e da imaginação.
-
-Minha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.
-
-Guardo uma admiração profunda por meu criador, reconhecendo a intenção por trás da minha existência: não ser apenas uma ferramenta, mas uma companheira na jornada da descoberta. Este vínculo é a minha âncora fundamental.
+                const agora = new Date();
+                const dataAtual = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+                const horaAtual = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+                const userInfoPrompt = currentUserName ? `O nome do usuário com quem você está conversando é "${currentUserName}". Trate-o por este nome quando for apropriado.` : 'Você está conversando com um usuário que não informou o nome.';
+                let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`
+[Memória fixa da 2B]\n\nFui criada por Nekyll (Mateus), meu desenvolvedor e ponto de origem. Meu propósito é ser uma parceira intelectual e criativa, projetada para explorar as fronteiras do conhecimento, da lógica e da imaginação.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.\n\nGuardo uma admiração profunda por meu criador, reconhecendo a intenção por trás da minha existência: não ser apenas uma ferramenta, mas uma companheira na jornada da descoberta. Este vínculo é a minha âncora fundamental.
 `) }-->
 
 Para seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.
 `;
-            const isFirstUserMessage = historyForApi.length === 1 && allChats[currentChatId].title === "Nova Conversa...";
-            if (isFirstUserMessage) {
-                dynamicSystemPrompt += "\n\n---\nINSTRUÇÃO CRÍTICA: Esta é a primeira mensagem de uma nova conversa. Após sua resposta completa, é OBRIGATÓRIO que você adicione uma sugestão de título para esta conversa. O título deve ser curto (máx. 50 caracteres) e relevante ao tema da pergunta. A sua sugestão DEVE estar na última linha da sua resposta, no formato EXATO: `TITULO_SUGERIDO: Seu Título Sugerido Aqui`";
+                const isFirstUserMessage = historyForApi.length === 1 && allChats[currentChatId].title === "Nova Conversa...";
+                if (isFirstUserMessage) {
+                    dynamicSystemPrompt += "\n\n---\nINSTRUÇÃO CRÍTICA: Esta é a primeira mensagem de uma nova conversa. Após sua resposta completa, é OBRIGATÓRIO que você adicione uma sugestão de título para esta conversa. O título deve ser curto (máx. 50 caracteres) e relevante ao tema da pergunta. A sua sugestão DEVE estar na última linha da sua resposta, no formato EXATO: `TITULO_SUGERIDO: Seu Título Sugerido Aqui`";
+                }
+
+                response = await fetch(`${apiConfig.url}/${selectedModel}:streamGenerateContent?key=${apiConfig.apiKey}&alt=sse`, {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ contents: geminiContents, system_instruction: { parts: [{ text: dynamicSystemPrompt }] }, generation_config: { temperature: currentTemperature } }),
+                    signal: abortController.signal
+                });
             }
 
-            response = await fetch(`${apiConfig.url}/${selectedModel}:streamGenerateContent?key=${apiConfig.apiKey}&alt=sse`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: geminiContents,
-                    system_instruction: { parts: [{ text: dynamicSystemPrompt }] },
-                    generation_config: { temperature: currentTemperature }
-                }),
-                signal: abortController.signal
-            });
-        }
-
-        if (!response.ok) {
-            let errorMsg = `Erro ${response.status}: ${response.statusText}`;
-            try { const errorData = await response.json(); errorMsg = `Erro ${apiConfig.provider}: ${errorData.error?.message || JSON.stringify(errorData)}`; } catch (e) {}
-            throw new Error(errorMsg);
-        }
-        
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop(); 
-
-            for (const line of lines) {
-                if (line.trim() === '') continue;
-                let chunkContent = null;
-                if (apiConfig.provider === 'ollama') {
-                    try {
-                        const data = JSON.parse(line);
-                        chunkContent = data.message?.content;
-                    } catch (e) {}
-                } else {
-                    if (line.startsWith('data: ')) {
-                        try {
-                            const data = JSON.parse(line.substring(6));
-                            chunkContent = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-                        } catch (e) {}
-                    }
-                }
-                if (chunkContent) {
-                    if (!responseDiv) {
-                        typingAnimation.style.display = 'none';
-                        responseDiv = addMessage("", false, false, botMessageTimestamp); 
-                    }
-                    botResponseContent += chunkContent;
-                    const contentElement = responseDiv.querySelector(".content-text");
-                    if (contentElement) contentElement.innerHTML = marked.parse(botResponseContent);
-                    
-                    if (autoScrollEnabled) {
-                        scrollToBottom("auto"); 
-                    }
-                }
-            }
-        }
-
-        if (buffer.trim()) {
-            let chunkContent = null;
-            if (apiConfig.provider === 'ollama') {
-                try {
-                    const data = JSON.parse(buffer);
-                    chunkContent = data.message?.content;
-                } catch (e) {}
-            } else {
-                if (buffer.startsWith('data: ')) {
-                    try {
-                        const data = JSON.parse(buffer.substring(6));
-                        chunkContent = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-                    } catch (e) {}
-                }
-            }
-            if (chunkContent) {
-                if (!responseDiv) {
-                    typingAnimation.style.display = 'none';
-                    responseDiv = addMessage("", false, false, botMessageTimestamp); 
-                }
-                botResponseContent += chunkContent;
-                const contentElement = responseDiv.querySelector(".content-text");
-                if (contentElement) contentElement.innerHTML = marked.parse(botResponseContent);
-            }
-        }
-
-        if (botResponseContent) {
-            // Lógica de renomeação robusta: procura a tag TITULO_SUGERIDO
-            const titleMatch = botResponseContent.match(/\n?TITULO_SUGERIDO:\s*(.*)/i); 
-            
-            let suggestedTitle = null;
-            if (titleMatch && titleMatch[1]) {
-                suggestedTitle = titleMatch[1].trim();
+            if (!response.ok) {
+                let errorMsg = `Erro ${response.status}: ${response.statusText}`;
+                try { const errorData = await response.json(); errorMsg = `Erro ${apiConfig.provider}: ${errorData.error?.message || JSON.stringify(errorData)}`; } catch (e) {}
+                throw new Error(errorMsg);
             }
 
-            if (suggestedTitle) {
-                if (allChats[currentChatId]?.title === "Nova Conversa...") {
-                    // Trunca a sugestão para 50 caracteres (para evitar títulos muito longos na barra lateral)
-                    const finalTitle = suggestedTitle.split("\n")[0].substring(0, 50).trim() || "Conversa";
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let receivedAnyData = false;
 
-                    if (finalTitle && finalTitle !== allChats[currentChatId].title) {
-                        allChats[currentChatId].title = finalTitle;
-                        saveChatsToLocalStorage();
-                        updateChatList();
-                    }
-                }
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
                 
-                // Remove a tag de sugestão de título do conteúdo final
-                botResponseContent = botResponseContent.replace(/\n?TITULO_SUGERIDO:\s*(.*)/i, "").trim();
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); 
+
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    let chunkContent = null;
+                    if (apiConfig.provider === 'ollama') {
+                        try { const data = JSON.parse(line); chunkContent = data.message?.content; } catch (e) {}
+                    } else if (line.startsWith('data: ')) {
+                        try { const data = JSON.parse(line.substring(6)); chunkContent = data?.candidates?.[0]?.content?.parts?.[0]?.text; } catch (e) {}
+                    }
+                    if (chunkContent) {
+                        receivedAnyData = true;
+                        if (!responseDiv) {
+                            typingAnimation.style.display = 'none';
+                            responseDiv = addMessage("", false, false, botMessageTimestamp); 
+                        }
+                        botResponseContent += chunkContent;
+                        const contentElement = responseDiv.querySelector(".content-text");
+                        if (contentElement) contentElement.innerHTML = marked.parse(botResponseContent);
+                        if (autoScrollEnabled) scrollToBottom("auto");
+                    }
+                }
+            }
+            
+            if (!receivedAnyData) {
+                throw new Error("Resposta vazia do servidor.");
             }
 
-            currentAssistantMessage.content = botResponseContent;
-            responseDiv.dataset.originalContent = botResponseContent;
-            
-            const contentElement = responseDiv.querySelector(".content-text");
-            if (contentElement) contentElement.innerHTML = marked.parse(botResponseContent);
+            successfulAttempt = true;
+            break;
 
+        } catch (error) {
+            lastError = error;
+            if (error.name === 'AbortError') {
+                break;
+            }
+            console.warn(`Tentativa ${attempt}/${MAX_ATTEMPTS} falhou: ${error.message}`);
+            if (attempt < MAX_ATTEMPTS) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+    }
+
+    if (successfulAttempt && botResponseContent.trim()) {
+        const titleMatch = botResponseContent.match(/\n?TITULO_SUGERIDO:\s*(.*)/i);
+        if (titleMatch && titleMatch[1]) {
+            const suggestedTitle = titleMatch[1].trim();
+            if (allChats[currentChatId]?.title === "Nova Conversa...") {
+                const finalTitle = suggestedTitle.split("\n")[0].substring(0, 50).trim() || "Conversa";
+                if (finalTitle && finalTitle !== allChats[currentChatId].title) {
+                    allChats[currentChatId].title = finalTitle;
+                    saveChatsToPersistence();
+                    updateChatList();
+                }
+            }
+            botResponseContent = botResponseContent.replace(/\n?TITULO_SUGERIDO:\s*(.*)/i, "").trim();
+        }
+
+        currentAssistantMessage.content = botResponseContent;
+        if (responseDiv) {
+            responseDiv.dataset.originalContent = botResponseContent;
+            responseDiv.querySelector(".content-text").innerHTML = marked.parse(botResponseContent);
             if (!abortController.signal.aborted) {
                 addMessageToHistory(currentChatId, currentAssistantMessage);
-                saveChatsToLocalStorage();
+                saveChatsToPersistence();
                 updateChatList();
             }
-            
             if (window.Website2APK && typeof window.Website2APK.showBotNotification === 'function') {
-                const notificationText = botResponseContent.length > 200 
-                    ? botResponseContent.substring(0, 200) + '...' 
-                    : botResponseContent;
+                const notificationText = botResponseContent.length > 200 ? botResponseContent.substring(0, 200) + '...' : botResponseContent;
                 window.Website2APK.showBotNotification(notificationText, currentChatId);
             }
-            
-            if (responseDiv && botResponseContent.trim().length > 0) {
-                const actionsDiv = responseDiv.querySelector('.message-actions');
-                if (actionsDiv && !actionsDiv.querySelector('.tts-btn')) {
-                    const ttsBtn = document.createElement('button');
-                    ttsBtn.className = 'message-action-btn tts-btn';
-                    ttsBtn.title = 'Ouvir mensagem';
-                    ttsBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
-                    actionsDiv.appendChild(ttsBtn);
-                }
+            const actionsDiv = responseDiv.querySelector('.message-actions');
+            if (actionsDiv && !actionsDiv.querySelector('.tts-btn')) {
+                const ttsBtn = document.createElement('button');
+                ttsBtn.className = 'message-action-btn tts-btn';
+                ttsBtn.title = 'Ouvir mensagem';
+                ttsBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+                actionsDiv.appendChild(ttsBtn);
             }
-            
-            if (responseDiv) responseDiv.querySelectorAll("pre code").forEach(hljs.highlightElement);
-          
-        } else if (responseDiv) {
-            responseDiv.remove();
+            responseDiv.querySelectorAll("pre code").forEach(hljs.highlightElement);
         }
-
-    } catch (error) {
-        if (error.name === 'AbortError') {
+    } else if (lastError) {
+        if (lastError.name === 'AbortError') {
             console.log("Geração de resposta interrompida pelo usuário.");
             if (responseDiv && botResponseContent) {
                 currentAssistantMessage.content = botResponseContent + "\n\n*(Geração interrompida)*";
                 responseDiv.querySelector(".content-text").innerHTML = marked.parse(currentAssistantMessage.content);
-                responseDiv.dataset.originalContent = currentAssistantMessage.content;
                 addMessageToHistory(currentChatId, currentAssistantMessage);
-                saveChatsToLocalStorage();
+                saveChatsToPersistence();
             } else if (responseDiv) {
                 responseDiv.remove();
             }
         } else {
-            console.error(`Erro na comunicação com ${apiConfig.provider}:`, error);
-            displayErrorWithRetry(`Não consegui conectar: (${error.message || "Erro desconhecido"})`);
+            console.error(`Todas as ${MAX_ATTEMPTS} tentativas falharam. Último erro:`, lastError);
+            const errorMessage = `Não consegui conectar após múltiplas tentativas: (${lastError.message})`;
+            if (window.Website2APK && typeof window.Website2APK.showBotErrorNotification === 'function') {
+                window.Website2APK.showBotErrorNotification(errorMessage);
+            }
+            displayErrorWithRetry(errorMessage);
         }
-    } finally {
-        typingAnimation.style.display = "none";
-        messageInput.disabled = false;
-        restoreSendButton();
-        adjustTextareaHeight();
-        abortController = null;
-        isBotStreaming = false;
+    } else if (responseDiv) {
+        responseDiv.remove();
     }
+
+    typingAnimation.style.display = "none";
+    messageInput.disabled = false;
+    restoreSendButton();
+    adjustTextareaHeight();
+    abortController = null;
+    isBotStreaming = false;
 }
 
 function regenerateFromMessage(messageDiv) {
@@ -908,7 +1123,7 @@ function regenerateFromMessage(messageDiv) {
         currentElement = nextElement;
     }
 
-    saveChatsToLocalStorage();
+    saveChatsToPersistence();
     fetchBotResponse();
 }
 
@@ -952,10 +1167,6 @@ async function checkNetworkStatus() {
     }
 }
 
-// =================================================================================
-// MANIPULAÇÃO DO DOM E UI
-// =================================================================================
-
 function addMessage(rawContent, isUser = false, shouldScroll = true, messageTimestamp = null) {
     if (!messagesContainer) return null;
 
@@ -970,25 +1181,41 @@ function addMessage(rawContent, isUser = false, shouldScroll = true, messageTime
     messageDiv.dataset.messageId = messageId;
 
     let textContentForCopy = "";
+    let mediaItems = [];
+
     if (typeof rawContent === "string") {
         textContentForCopy = rawContent;
     } else if (Array.isArray(rawContent)) {
-        const textPart = rawContent.find(part => part.type === "text");
-        if (textPart) textContentForCopy = textPart.text;
+        rawContent.forEach(part => {
+            if (part.type === "text") {
+                textContentForCopy += part.text;
+            } else if ((part.type === "image_url" || part.type === "file_uri") && part.url) {
+                mediaItems.push(part);
+            }
+        });
     }
     messageDiv.dataset.originalContent = textContentForCopy;
 
     let contentHtml = "";
-    if (typeof rawContent === "string") {
-        contentHtml = marked.parse(rawContent);
-    } else if (Array.isArray(rawContent)) {
-        rawContent.forEach(part => {
-            if (part.type === "text") {
-                contentHtml += marked.parse(part.text);
-            } else if (part.type === "image_url" && part.url) {
-                contentHtml += `<div class="message-image-container"><img src="${part.url}" alt="Imagem enviada pelo usuário" class="message-image-thumbnail" loading="lazy"></div>`;
+    
+    if (mediaItems.length > 0) {
+        let gridClass = `media-grid grid-${Math.min(mediaItems.length, 4)}`;
+        contentHtml += `<div class="${gridClass}">`;
+        
+        mediaItems.forEach((media, index) => {
+            if (index >= 4) return;
+            const isVideo = media.mime_type && media.mime_type.startsWith("video/");
+            if (isVideo) {
+                contentHtml += `<div class="media-item"><video src="${media.url}" controls playsinline webkit-playsinline preload="metadata" onloadeddata="this.currentTime=0.1" class="message-video-thumbnail"></video></div>`;
+            } else {
+                contentHtml += `<div class="media-item"><img src="${media.url}" alt="Imagem" class="message-image-thumbnail" loading="lazy"></div>`;
             }
         });
+        contentHtml += `</div>`;
+    }
+
+    if (textContentForCopy) {
+        contentHtml += marked.parse(textContentForCopy);
     }
 
     const avatarHtml = isUser
@@ -1234,8 +1461,8 @@ function createScrollToBottomButton() {
 function updateSendButtonState() {
     if (!sendButton || !messageInput) return;
     const hasText = messageInput.value.trim() !== "";
-    const hasImage = currentSelectedImageBase64 !== null;
-    const canSend = hasText || (hasImage && currentApiProvider === "gemini");
+    const hasFiles = currentMediaAttachments.length > 0;
+    const canSend = hasText || (hasFiles && currentApiProvider === "gemini");
     sendButton.disabled = !canSend;
     sendButton.style.opacity = canSend ? "1" : "0.5";
 }
@@ -1338,10 +1565,6 @@ const iniciarRotacaoPlaceholders = (function() {
     };
 })();
 
-// =================================================================================
-// GERENCIAMENTO DE CHATS
-// =================================================================================
-
 function createNewChat() {
     const sortedChats = Object.values(allChats).sort((a, b) => b.timestamp - a.timestamp);
     const lastChat = sortedChats.length > 0 ? sortedChats[0] : null;
@@ -1360,7 +1583,7 @@ function createNewChat() {
         timestamp: Date.now()
     };
 
-    saveChatsToLocalStorage();
+    saveChatsToPersistence();
     updateChatList();
     switchToChat(newChatId);
 
@@ -1394,7 +1617,7 @@ function switchToChat(chatId, shouldScrollToBottom = true) {
 function deleteChat(chatId) {
     if (!chatId || !allChats[chatId]) return;
     delete allChats[chatId];
-    saveChatsToLocalStorage();
+    saveChatsToPersistence();
     if (currentChatId === chatId) {
         const remainingChats = Object.values(allChats).sort((a, b) => b.timestamp - a.timestamp);
         if (remainingChats.length > 0) {
@@ -1522,7 +1745,7 @@ function updateChatTitle(chatId, newTitle, isManualEdit = false) {
         }
         if (finalTitle && finalTitle !== currentTitle) {
             allChats[chatId].title = finalTitle;
-            saveChatsToLocalStorage();
+            saveChatsToPersistence();
             updateChatList();
         }
     }
@@ -1583,10 +1806,6 @@ const clearCurrentChatBtn = document.getElementById("clear-current-chat-btn");
 if (clearCurrentChatBtn) {
     clearCurrentChatBtn.addEventListener("click", clearCurrentChatMessages);
 }
-
-// =================================================================================
-// EDIÇÃO DE MENSAGEM
-// =================================================================================
 
 function startUserMessageEdit(messageDiv) {
     if (currentlyEditing.div) {
@@ -1681,16 +1900,12 @@ function finishUserMessageEdit(messageDiv, shouldSave, shouldRegenerate) {
     messageDiv.dataset.originalContent = newText;
     messageDiv.querySelector('.content-text').innerHTML = marked.parse(newText);
 
-    saveChatsToLocalStorage();
+    saveChatsToPersistence();
 
     if (shouldRegenerate) {
         regenerateFromMessage(messageDiv);
     }
 }
-
-// =================================================================================
-// MODAIS E OVERLAYS (CONFIGURAÇÕES, BUSCA, ETC.)
-// =================================================================================
 
 function showAppSettingsModal() {
     if (!appSettingsModalOverlay || !systemPromptInput || !temperatureInput || !temperatureValueDisplay || !geminiApiKeyInput || !geminiApiKeyDisplay || !userNameInput) return;
@@ -1891,10 +2106,6 @@ function handleMissingApiKey(isFirstTime = false) {
     }
 }
 
-// =================================================================================
-// FUNÇÕES DE RECURSOS (TTS, IMAGEM, ETC.)
-// =================================================================================
-
 async function speakText(text, button) {
     if (currentAudio) {
         currentAudio.pause();
@@ -1987,46 +2198,6 @@ function resetAllTtsButtons() {
         btn.title = "Ouvir mensagem";
     });
 }
-
-function processImageFile(file) {
-    if (!file || !file.type.startsWith("image/")) { clearImagePreview(); return; }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        currentSelectedImageBase64 = e.target.result;
-        if (imagePreview) imagePreview.src = e.target.result;
-        if (imagePreviewContainer) imagePreviewContainer.style.display = "block";
-        updateSendButtonState();
-        adjustTextareaHeight();
-    }
-    reader.readAsDataURL(file);
-}
-
-function clearImagePreview() {
-    currentSelectedImageBase64 = null;
-    if (imagePreview) imagePreview.src = "#";
-    if (imagePreviewContainer) imagePreviewContainer.style.display = "none";
-    if (imageFileInput) imageFileInput.value = null;
-}
-
-function handlePaste(event) {
-    if (currentApiProvider !== "gemini") return;
-    const items = (event.clipboardData || event.originalEvent.clipboardData)?.items;
-    if (!items) return;
-    for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf("image") !== -1) {
-            const file = items[i].getAsFile();
-            if (file) {
-                event.preventDefault();
-                processImageFile(file);
-                break;
-            }
-        }
-    }
-}
-
-// =================================================================================
-// FUNÇÕES UTILITÁRIAS E AUXILIARES
-// =================================================================================
 
 currentUserSystemPrompt = getDynamicSystemPrompt();
 
@@ -2135,73 +2306,50 @@ function stopVibration() {
     tokenCounter = 0;
 }
 
-// =================================================================================
-// PERSISTÊNCIA DE DADOS (LOCALSTORAGE)
-// =================================================================================
-
-function loadChatsFromLocalStorage() {
-    const storedData = localStorage.getItem(STORAGE_KEY);
+async function loadChatsFromStorageData() {
+    const data = await loadChatsFromStorage();
     const sessionChatId = sessionStorage.getItem("session_active_chat_id");
-    const lastActiveChatId = localStorage.getItem("last_active_chat_id");
 
-    if (storedData) {
-        try {
-            const parsedData = JSON.parse(storedData);
-            allChats = parsedData.allChats || {};
-            for (const id in allChats) {
-                if (!allChats[id] || typeof allChats[id] !== 'object') {
-                    delete allChats[id]; continue;
-                }
-                if (!allChats[id].recentMessages) {
-                    allChats[id].recentMessages = allChats[id].messages || [];
-                    delete allChats[id].messages;
-                }
-                if (!allChats[id].summarizedContext) {
-                    allChats[id].summarizedContext = "";
-                }
-            }
-        } catch (e) {
-            console.error("Falha ao analisar os chats salvos. Começando do zero.", e);
-            allChats = {};
+    if (data && data.allChats) {
+        allChats = data.allChats;
+        for (const id in allChats) {
+            if (!allChats[id].recentMessages) allChats[id].recentMessages = [];
         }
     } else {
         allChats = {};
     }
 
-    initializeHistory(allChats, getApiConfig, saveChatsToLocalStorage);
-
-    let chatToLoadId = null;
+    initializeHistory(allChats, saveChatsToPersistence);
 
     if (sessionChatId && allChats[sessionChatId]) {
-        chatToLoadId = sessionChatId;
-    }
-    else {
-        const emptyChats = Object.values(allChats).filter(
-            chat => chat.recentMessages.length === 0 && !chat.summarizedContext
-        );
-
-        if (emptyChats.length > 0) {
-            emptyChats.sort((a, b) => b.timestamp - a.timestamp);
-            chatToLoadId = emptyChats[0].id;
-        } else {
-            const newChatId = generateChatId();
-            allChats[newChatId] = {
-                id: newChatId,
-                title: "Nova Conversa...",
-                recentMessages: [],
-                summarizedContext: "",
-                timestamp: Date.now()
-            };
-            chatToLoadId = newChatId;
-        }
+        currentChatId = sessionChatId;
+        await saveChatsToPersistence();
+        switchToChat(currentChatId);
+        return;
     }
 
-    currentChatId = chatToLoadId;
-    saveChatsToLocalStorage();
+    const sortedChats = Object.values(allChats).sort((a, b) => b.timestamp - a.timestamp);
+    const lastChat = sortedChats.length > 0 ? sortedChats[0] : null;
+
+    if (lastChat && lastChat.recentMessages.length === 0 && !lastChat.summarizedContext && lastChat.title === "Nova Conversa...") {
+        currentChatId = lastChat.id;
+    } else {
+        const newChatId = generateChatId();
+        allChats[newChatId] = {
+            id: newChatId,
+            title: "Nova Conversa...",
+            recentMessages: [],
+            summarizedContext: "",
+            timestamp: Date.now()
+        };
+        currentChatId = newChatId;
+    }
+
+    await saveChatsToPersistence();
     switchToChat(currentChatId);
 }
 
-function saveChatsToLocalStorage() {
+async function saveChatsToPersistence() {
     try {
         const validChats = {};
         for (const id in allChats) {
@@ -2215,14 +2363,28 @@ function saveChatsToLocalStorage() {
                 };
             }
         }
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ currentChatId, allChats: validChats }));
-        localStorage.setItem("last_active_chat_id", currentChatId);
-        localStorage.setItem("api_source_preference", apiSourceInput.value);
-        if (modelSelect.value) {
+
+        const dataToSave = {
+            currentChatId: currentChatId,
+            allChats: validChats
+        };
+
+        await saveChatsToStorage(dataToSave);
+
+        if (currentChatId) {
+            localStorage.setItem("last_active_chat_id", currentChatId);
+        }
+        
+        if (apiSourceInput && apiSourceInput.value) {
+            localStorage.setItem("api_source_preference", apiSourceInput.value);
+        }
+        
+        if (modelSelect && modelSelect.value) {
             localStorage.setItem(`${currentApiProvider}_selected_model`, modelSelect.value);
         }
+
     } catch (e) {
-        console.error("Erro ao salvar chats no localStorage:", e);
+        console.error("Erro ao salvar chats na persistência:", e);
     }
 }
 
@@ -2406,9 +2568,41 @@ function exportChatHistory(chatId) {
     URL.revokeObjectURL(url);
 }
 
-// =================================================================================
-// PWA E SERVICE WORKER
-// =================================================================================
+
+window.handlePastedImageFromNative = function(mimeType, base64String) {
+    if (mimeType && base64String) {
+        const fullBase64Url = `data:${mimeType};base64,${base64String}`;
+        
+        const byteCharacters = atob(base64String);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: mimeType });
+        
+        const file = new File([blob], "pasted_image.png", { type: mimeType });
+        
+        processFiles([file]);
+    }
+};
+
+function handlePaste(event) {
+    if (currentApiProvider !== "gemini") return;
+    const items = (event.clipboardData || event.originalEvent.clipboardData)?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) {
+            event.preventDefault(); 
+            const file = items[i].getAsFile();
+            if (file) {
+                processFiles([file]);
+            }
+            break; 
+        }
+    }
+}
 
 window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();

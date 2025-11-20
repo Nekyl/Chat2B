@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Chat 2B</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="local_assets/css/all.min.css">
@@ -121,16 +121,17 @@
         <footer class="bottom-bar">
             <div class="input-area-container">
                 <div id="image-preview-container">
-                    <img id="image-preview" src="#" alt="Image preview"/>
-                    <button id="remove-image-btn" title="Remover imagem">&times;</button>
-                </div>
+                <img id="image-preview" src="#" alt="Image preview" style="display: none;"/>
+                <video id="video-preview" autoplay muted loop style="display: none;"></video>
+                <button id="remove-image-btn" title="Remover mídia">&times;</button>
+            </div>
                 <form id="chat-form" class="input-wrapper">
                     <div class="input-area">
                         <textarea id="message-input" placeholder="" rows="1"></textarea>
                     </div>
                     <div class="input-actions">
-                        <input type="file" id="image-file-input" accept="image/*" style="display: none;">
-                        <button type="button" id="attach-image-btn" class="attach-btn" title="Anexar imagem">
+                        <input type="file" id="image-file-input" accept="image/*,video/*" style="display: none;">
+                        <button type="button" id="attach-image-btn" class="attach-btn" title="Anexar mídia">
                             <i class="fas fa-paperclip"></i>
                         </button>
                         <button type="submit" id="send-button" class="send-btn" disabled>
@@ -231,5 +232,14 @@
     <script src="local_assets/js/highlight.min.js"></script>
     <script>hljs.highlightAll();</script>
     <script type="module" src="script.js"></script>
+    
+    <script type="text/javascript">
+  function onWebAppReady() {
+    if (typeof Website2APK !== 'undefined') {
+      Website2APK.notifyPageReady();
+    }
+  }
+</script>
+    
 </body>
 </html>
