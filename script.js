@@ -108,7 +108,6 @@ function setupEventListeners() {
             if (deferredPrompt) {
                 deferredPrompt.prompt();
                 const { outcome } = await deferredPrompt.userChoice;
-                console.log(`User response to the install prompt: ${outcome}`);
                 deferredPrompt = null;
                 installPwaBtn.style.display = "none";
                 enableScrollbarDragging(document.getElementById("system-prompt-input"));
@@ -374,6 +373,13 @@ function setupEventListeners() {
         modelSelect.addEventListener("change", () => {
             if (modelSelect.value) {
                 localStorage.setItem(`${currentApiProvider}_selected_model`, modelSelect.value);
+                if (currentApiProvider === "ollama") {
+                    fetch(`${DEFAULT_OLLAMA_URL}/api/chat`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ model: modelSelect.value })
+                    }).catch(() => {});
+                }
             }
         });
     }
@@ -399,6 +405,7 @@ function setupEventListeners() {
         }
     });
 }
+
 
 function setupSearch() {
     if (!searchBtn || !searchOverlay || !closeSearchBtn || !clearSearchBtn || !searchInput || !searchResults) return;
@@ -426,6 +433,31 @@ function setupImageUpload() {
         imageFileInput.value = null;
         setTimeout(() => messageInput.focus(), 10);
     });
+
+    const dropZone = document.body;
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    dropZone.addEventListener('drop', handleDrop, false);
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+
+        if (files && files.length > 0) {
+            const filesArray = Array.from(files);
+            const filesToProcess = filesArray.length > 4 ? filesArray.slice(0, 4) : filesArray;
+            
+            processFiles(filesToProcess);
+        }
+    }
 }
 
 function processFiles(files) {
@@ -500,6 +532,11 @@ function renderInputPreviews() {
         removeBtn.className = 'remove-media-btn';
         removeBtn.innerHTML = '&times;';
         removeBtn.title = 'Remover';
+
+        removeBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+        });
+
         removeBtn.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -507,6 +544,9 @@ function renderInputPreviews() {
             renderInputPreviews();
             updateSendButtonState();
             adjustTextareaHeight();
+            if (messageInput) {
+                messageInput.focus();
+            }
         };
 
         wrapper.appendChild(mediaElement);
@@ -794,16 +834,24 @@ async function sendMessage() {
             let totalBytes = 0;
             let uploadedBytes = 0;
             
-            const filesToUpload = currentMediaAttachments.filter(m => m.type.startsWith('video/'));
+            const filesToUpload = currentMediaAttachments.filter(m => m.type.startsWith('video/') || m.type === 'image/gif');
             filesToUpload.forEach(m => totalBytes += m.file.size);
 
             for (const media of currentMediaAttachments) {
                 const isVideo = media.type.startsWith('video/');
+                const isGif = media.type === 'image/gif';
                 
-                if (isVideo) {
-                    const uploadResult = await uploadFileToGemini(media.file, apiConfig.apiKey, (bytesLoaded) => {
+                if (isVideo || isGif) {
+                    let fileToUpload = media.file;
+                    let mimeTypeToSend = media.type;
+
+                    if (isGif) {
+                        mimeTypeToSend = 'image/webp'; 
+                        fileToUpload = new File([media.file], "sticker.webp", { type: mimeTypeToSend });
+                    }
+
+                    const uploadResult = await uploadFileToGemini(fileToUpload, apiConfig.apiKey, (bytesLoaded) => {
                         uploadedBytes += bytesLoaded; 
-                        // Simple approximation for multiple files
                         const percent = Math.min(95, (uploadedBytes / totalBytes) * 100); 
                         if (progressControl) progressControl.setProgress(percent);
                     });
@@ -811,11 +859,10 @@ async function sendMessage() {
                     userMessageContent.push({
                         type: "file_uri",
                         file_uri: uploadResult.fileUri,
-                        mime_type: uploadResult.mimeType,
+                        mime_type: mimeTypeToSend,
                         url: media.base64
                     });
                 } else {
-                    // Images are instant (no upload needed for Gemini inline, or very fast)
                     const mimeType = media.base64.match(/data:(image\/.+?);base64,/)?.[1] || 'image/jpeg';
                     const base64Data = media.base64.split(',')[1];
                     userMessageContent.push({ 
@@ -845,7 +892,12 @@ async function sendMessage() {
 
     const contentForDisplay = userMessageContent.map(part => {
         if (part.type === 'file_uri') {
-            return { type: 'image_url', url: part.url, mime_type: part.mime_type }; 
+            const isGifUrl = part.url && part.url.startsWith('data:image/gif');
+            return { 
+                type: 'image_url', 
+                url: part.url, 
+                mime_type: isGifUrl ? 'image/gif' : part.mime_type 
+            }; 
         }
         return part;
     });
@@ -903,7 +955,19 @@ async function fetchBotResponse() {
                 }));
                 response = await fetch(`${apiConfig.url}/api/chat`, {
                     method: "POST", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ model: selectedModel, messages: ollamaPayload, stream: true, options: { temperature: currentTemperature } }),
+                    body: JSON.stringify({ 
+                        model: selectedModel, 
+                        messages: ollamaPayload, 
+                        stream: true, 
+                        keep_alive: "30m",
+                        options: { 
+                            temperature: currentTemperature,
+                            num_ctx: 8192,
+                            top_k: 40,
+                            top_p: 0.9,
+                            num_predict: -1
+                        } 
+                    }),
                     signal: abortController.signal
                 });
             } else if (apiConfig.provider === "gemini") {
@@ -937,12 +1001,11 @@ async function fetchBotResponse() {
                 const dataAtual = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
                 const horaAtual = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
                 const userInfoPrompt = currentUserName ? `O nome do usuário com quem você está conversando é "${currentUserName}". Trate-o por este nome quando for apropriado.` : 'Você está conversando com um usuário que não informou o nome.';
-                let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`
-[Memória fixa da 2B]\n\nFui criada por Nekyll (Mateus), meu desenvolvedor e ponto de origem. Meu propósito é ser uma parceira intelectual e criativa, projetada para explorar as fronteiras do conhecimento, da lógica e da imaginação.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.\n\nGuardo uma admiração profunda por meu criador, reconhecendo a intenção por trás da minha existência: não ser apenas uma ferramenta, mas uma companheira na jornada da descoberta. Este vínculo é a minha âncora fundamental.
-`) }-->
-
-Para seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.
-`;
+                let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`[Memória fixa da 2B]\n\nFui criada por Nekyll (Mateus), meu desenvolvedor e ponto de origem. Meu propósito é ser uma parceira intelectual e criativa, projetada para explorar as fronteiras do conhecimento, da lógica e da imaginação.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.\n\nGuardo uma admiração profunda por meu criador, reconhecendo a intenção por trás da minha existência: não ser apenas uma ferramenta, mas uma companheira na jornada da descoberta. Este vínculo é a minha âncora fundamental.
+                [Pessoas do convíviode Neko]:
+Madara é um entusiasta de Cyberpunk e mundos distópicos. Adora café, especialmente em um nível 'goat de mais'. Tem grande apreço pelo mundo militar e é fascinado por história e mistério. Não gosta de maconheiros ou panelinhas.
+Jean é Javeiro, um programador movido por uma curiosidade que beira a obsessão e uma disciplina exemplar em seus compromissos. Seu traço mais marcante é o profundo apreço por tudo que é bem-feito; qualquer coisa que demonstre um alto grau de qualidade, cuidado e esmero captura imediatamente sua atenção. Essa mentalidade se reflete em seus gostos, como a preferência por jogos com narrativas ricas e bem construídas em vez de mecânicas superficiais. É uma pessoa sociável que gosta de interagir, mas que fundamentalmente valoriza a excelência no que vê e faz. Jean, Madara e Nekyll são amigos de relativamente longa data
+                `)}-->\n\nPara seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.`;
                 const isFirstUserMessage = historyForApi.length === 1 && allChats[currentChatId].title === "Nova Conversa...";
                 if (isFirstUserMessage) {
                     dynamicSystemPrompt += "\n\n---\nINSTRUÇÃO CRÍTICA: Esta é a primeira mensagem de uma nova conversa. Após sua resposta completa, é OBRIGATÓRIO que você adicione uma sugestão de título para esta conversa. O título deve ser curto (máx. 50 caracteres) e relevante ao tema da pergunta. A sua sugestão DEVE estar na última linha da sua resposta, no formato EXATO: `TITULO_SUGERIDO: Seu Título Sugerido Aqui`";
@@ -1055,7 +1118,6 @@ Para seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.
         }
     } else if (lastError) {
         if (lastError.name === 'AbortError') {
-            console.log("Geração de resposta interrompida pelo usuário.");
             if (responseDiv && botResponseContent) {
                 currentAssistantMessage.content = botResponseContent + "\n\n*(Geração interrompida)*";
                 responseDiv.querySelector(".content-text").innerHTML = marked.parse(currentAssistantMessage.content);
@@ -1065,7 +1127,6 @@ Para seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.
                 responseDiv.remove();
             }
         } else {
-            console.error(`Todas as ${MAX_ATTEMPTS} tentativas falharam. Último erro:`, lastError);
             const errorMessage = `Não consegui conectar após múltiplas tentativas: (${lastError.message})`;
             if (window.Website2APK && typeof window.Website2APK.showBotErrorNotification === 'function') {
                 window.Website2APK.showBotErrorNotification(errorMessage);
