@@ -519,11 +519,39 @@ function renderInputPreviews() {
             mediaElement = document.createElement('video');
             mediaElement.src = media.base64;
             mediaElement.muted = true;
+            mediaElement.autoplay = true;
+            mediaElement.loop = true;
+            mediaElement.playsInline = true;
+            mediaElement.className = 'media-preview-thumbnail';
+            
+            mediaElement.onclick = (e) => {
+                e.stopPropagation();
+                const overlay = document.getElementById('image-preview-overlay');
+                const fullVideo = document.getElementById('image-preview-full-video');
+                const fullImage = document.getElementById('image-preview-full-image');
+
+                if (fullVideo && overlay) {
+                    fullVideo.src = media.base64;
+                    fullVideo.style.display = 'block';
+                    fullVideo.controls = true;
+                    fullVideo.muted = false;
+                    if (fullImage) fullImage.style.display = 'none';
+                    
+                    overlay.classList.add('active');
+                    history.pushState({ imagePreview: true }, "Visualizador de Vídeo");
+                    
+                    try {
+                        fullVideo.play();
+                    } catch (err) {
+                        console.log("Autoplay bloqueado no full preview");
+                    }
+                }
+            };
         } else {
             mediaElement = document.createElement('img');
             mediaElement.src = media.base64;
+            mediaElement.className = 'media-preview-thumbnail';
         }
-        mediaElement.className = 'media-preview-thumbnail';
         
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-media-btn';
@@ -546,24 +574,9 @@ function renderInputPreviews() {
             const editOverlay = document.createElement('div');
             editOverlay.className = 'media-edit-overlay';
             editOverlay.innerHTML = '<i class="fas fa-pencil-alt"></i>';
-
-            // MUDANÇA AQUI: O clique para editar vai para o overlay do lápis
-            editOverlay.onclick = (e) => {
-                e.stopPropagation(); // Impede que o clique chegue na imagem por baixo
-                openImageEditor(media.id);
-            };
-
-            // MUDANÇA AQUI: O clique para visualizar vai para a imagem em si
-            mediaElement.onclick = () => {
-                openInputPreview(media.base64);
-            };
-
             wrapper.appendChild(editOverlay);
-        } else {
-             // Lógica para abrir preview de vídeo, se desejar
-            mediaElement.onclick = () => {
-                 openInputPreview(media.base64); // Reutilizando a função
-            };
+
+            wrapper.onclick = () => openImageEditor(media.id);
         }
 
         imagePreviewContainer.appendChild(wrapper);
@@ -575,20 +588,6 @@ function renderInputPreviews() {
 function clearImagePreview() {
     currentMediaAttachments = [];
     renderInputPreviews();
-}
-
-function openInputPreview(base64Src) {
-    const overlay = document.getElementById('image-preview-overlay');
-    const fullImage = document.getElementById('image-preview-full-image');
-    const fullVideo = document.getElementById('image-preview-full-video');
-
-    if (fullImage && overlay && fullVideo) {
-        fullImage.src = base64Src;
-        fullImage.style.display = 'block';
-        fullVideo.style.display = 'none';
-        overlay.classList.add('active');
-        history.pushState({ imagePreview: true }, "Visualizador de Imagem");
-    }
 }
 
 function setupImagePreview() {
@@ -625,7 +624,9 @@ function setupImagePreview() {
         </div>
     `;
 
-    document.body.insertAdjacentHTML('beforeend', previewHtml + editorHtml);
+    if (!document.getElementById('image-preview-overlay')) {
+        document.body.insertAdjacentHTML('beforeend', previewHtml + editorHtml);
+    }
 
     const overlay = document.getElementById('image-preview-overlay');
     const fullImage = document.getElementById('image-preview-full-image');
@@ -640,14 +641,20 @@ function setupImagePreview() {
             } else {
                 overlay.classList.remove('active');
             }
-            if (fullVideo) fullVideo.pause();
+            if (fullVideo) {
+                fullVideo.pause();
+                fullVideo.src = "";
+            }
         }
     };
 
     window.addEventListener('popstate', () => {
         if (overlay && overlay.classList.contains('active')) {
             overlay.classList.remove('active');
-            if (fullVideo) fullVideo.pause();
+            if (fullVideo) {
+                fullVideo.pause();
+                fullVideo.src = "";
+            }
         }
         if (editorModal && editorModal.classList.contains('active')) {
             closeImageEditor();
@@ -670,9 +677,11 @@ function setupImagePreview() {
             if (fullVideo && overlay) {
                 fullVideo.src = e.target.src;
                 fullVideo.style.display = 'block';
+                fullVideo.controls = true;
                 if (fullImage) fullImage.style.display = 'none';
                 overlay.classList.add('active');
                 history.pushState({ imagePreview: true }, "Visualizador de Vídeo");
+                fullVideo.play().catch(() => {});
             }
         }
     });
