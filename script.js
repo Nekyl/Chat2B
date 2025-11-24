@@ -2,6 +2,8 @@ import { initializeHistory, addMessageToHistory, getHistoryForApi, clearChatHist
 import { loadChatsFromStorage, saveChatsToStorage } from "./storage.js";
 import { PROMPT_BASE } from "./prompt.js";
 
+let currentEditorCropper = null;
+let currentEditingMediaId = null;
 const messagesContainer = document.getElementById("messages");
 const connectionStatusToast = document.getElementById("connection-status-toast");
 const connectionStatusText = document.getElementById("connection-status-text");
@@ -509,34 +511,25 @@ function renderInputPreviews() {
     currentMediaAttachments.forEach(media => {
         const wrapper = document.createElement('div');
         wrapper.className = 'media-preview-item-wrapper';
-
+        
         let mediaElement;
-        if (media.type.startsWith('video/')) {
+        const isVideo = media.type.startsWith('video/');
+        
+        if (isVideo) {
             mediaElement = document.createElement('video');
             mediaElement.src = media.base64;
-            mediaElement.autoplay = false;
             mediaElement.muted = true;
-            mediaElement.setAttribute('playsinline', '');
-            mediaElement.setAttribute('webkit-playsinline', '');
-            mediaElement.preload = 'metadata';
-            mediaElement.onloadeddata = function() {
-                this.currentTime = 0.1;
-            };
         } else {
             mediaElement = document.createElement('img');
             mediaElement.src = media.base64;
         }
         mediaElement.className = 'media-preview-thumbnail';
-
+        
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-media-btn';
         removeBtn.innerHTML = '&times;';
         removeBtn.title = 'Remover';
-
-        removeBtn.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-        });
-
+        removeBtn.onmousedown = (e) => e.preventDefault();
         removeBtn.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -544,21 +537,58 @@ function renderInputPreviews() {
             renderInputPreviews();
             updateSendButtonState();
             adjustTextareaHeight();
-            if (messageInput) {
-                messageInput.focus();
-            }
         };
 
         wrapper.appendChild(mediaElement);
         wrapper.appendChild(removeBtn);
+
+        if (!isVideo) {
+            const editOverlay = document.createElement('div');
+            editOverlay.className = 'media-edit-overlay';
+            editOverlay.innerHTML = '<i class="fas fa-pencil-alt"></i>';
+
+            // MUDANÇA AQUI: O clique para editar vai para o overlay do lápis
+            editOverlay.onclick = (e) => {
+                e.stopPropagation(); // Impede que o clique chegue na imagem por baixo
+                openImageEditor(media.id);
+            };
+
+            // MUDANÇA AQUI: O clique para visualizar vai para a imagem em si
+            mediaElement.onclick = () => {
+                openInputPreview(media.base64);
+            };
+
+            wrapper.appendChild(editOverlay);
+        } else {
+             // Lógica para abrir preview de vídeo, se desejar
+            mediaElement.onclick = () => {
+                 openInputPreview(media.base64); // Reutilizando a função
+            };
+        }
+
         imagePreviewContainer.appendChild(wrapper);
     });
+    
     adjustTextareaHeight();
 }
 
 function clearImagePreview() {
     currentMediaAttachments = [];
     renderInputPreviews();
+}
+
+function openInputPreview(base64Src) {
+    const overlay = document.getElementById('image-preview-overlay');
+    const fullImage = document.getElementById('image-preview-full-image');
+    const fullVideo = document.getElementById('image-preview-full-video');
+
+    if (fullImage && overlay && fullVideo) {
+        fullImage.src = base64Src;
+        fullImage.style.display = 'block';
+        fullVideo.style.display = 'none';
+        overlay.classList.add('active');
+        history.pushState({ imagePreview: true }, "Visualizador de Imagem");
+    }
 }
 
 function setupImagePreview() {
@@ -571,16 +601,45 @@ function setupImagePreview() {
             </div>
         </div>
     `;
-    document.body.insertAdjacentHTML('beforeend', previewHtml);
+
+    const editorHtml = `
+        <div class="image-editor-modal" id="image-editor-modal">
+            <div class="editor-header">
+                <button class="editor-action-btn" id="editor-cancel-btn"><i class="fas fa-times"></i></button>
+                <span class="editor-title">Editar Imagem</span>
+                <button class="editor-action-btn" id="editor-save-btn" style="color: #4CAF50;">Concluir</button>
+            </div>
+            <div class="editor-canvas-container">
+                <img id="editor-image-target" src="">
+            </div>
+            <div class="editor-footer">
+                <button class="editor-tool-btn" id="tool-crop" title="Resetar Corte">
+                    <i class="fas fa-crop-alt"></i>
+                    <span>Resetar</span>
+                </button>
+                <button class="editor-tool-btn" id="tool-rotate" title="Girar">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>Girar</span>
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', previewHtml + editorHtml);
 
     const overlay = document.getElementById('image-preview-overlay');
     const fullImage = document.getElementById('image-preview-full-image');
     const fullVideo = document.getElementById('image-preview-full-video');
     const closeBtn = document.getElementById('image-preview-close-btn');
+    const editorModal = document.getElementById('image-editor-modal');
 
     const closePreview = () => {
         if (overlay && overlay.classList.contains('active')) {
-            history.back();
+            if (history.state && history.state.imagePreview) {
+                history.back();
+            } else {
+                overlay.classList.remove('active');
+            }
             if (fullVideo) fullVideo.pause();
         }
     };
@@ -589,6 +648,9 @@ function setupImagePreview() {
         if (overlay && overlay.classList.contains('active')) {
             overlay.classList.remove('active');
             if (fullVideo) fullVideo.pause();
+        }
+        if (editorModal && editorModal.classList.contains('active')) {
+            closeImageEditor();
         }
     });
 
@@ -625,6 +687,110 @@ function setupImagePreview() {
             }
         });
     }
+
+    const editorCancelBtn = document.getElementById('editor-cancel-btn');
+    const editorSaveBtn = document.getElementById('editor-save-btn');
+    const toolRotate = document.getElementById('tool-rotate');
+    const toolCrop = document.getElementById('tool-crop');
+
+    if (editorCancelBtn) {
+        editorCancelBtn.addEventListener('click', () => {
+            history.back();
+        });
+    }
+
+    if (editorSaveBtn) {
+        editorSaveBtn.addEventListener('click', saveEditedImage);
+    }
+
+    if (toolRotate) {
+        toolRotate.addEventListener('click', () => {
+            if (currentEditorCropper) currentEditorCropper.rotate(90);
+        });
+    }
+
+    if (toolCrop) {
+        toolCrop.addEventListener('click', () => {
+            if (currentEditorCropper) currentEditorCropper.reset();
+        });
+    }
+}
+
+function openImageEditor(mediaId) {
+    const mediaItem = currentMediaAttachments.find(m => m.id === mediaId);
+    if (!mediaItem || mediaItem.type.startsWith('video/')) return;
+
+    currentEditingMediaId = mediaId;
+    
+    const editorModal = document.getElementById('image-editor-modal');
+    const imageTarget = document.getElementById('editor-image-target');
+    
+    if (!editorModal || !imageTarget) return;
+
+    imageTarget.src = mediaItem.base64;
+    
+    editorModal.classList.add('active');
+    history.pushState({ imageEditor: true }, "Editor de Imagem");
+
+    if (window.Cropper) {
+        if (currentEditorCropper) {
+            currentEditorCropper.destroy();
+        }
+
+        currentEditorCropper = new Cropper(imageTarget, {
+            viewMode: 1,
+            dragMode: 'move',
+            autoCropArea: 0.9,
+            restore: false,
+            guides: true,
+            center: true,
+            highlight: false,
+            cropBoxMovable: true,
+            cropBoxResizable: true,
+            toggleDragModeOnDblclick: false,
+            background: false
+        });
+    }
+}
+
+function closeImageEditor() {
+    const editorModal = document.getElementById('image-editor-modal');
+    if (editorModal) {
+        editorModal.classList.remove('active');
+    }
+    
+    if (currentEditorCropper) {
+        currentEditorCropper.destroy();
+        currentEditorCropper = null;
+    }
+    currentEditingMediaId = null;
+}
+
+function saveEditedImage() {
+    if (!currentEditorCropper || !currentEditingMediaId) return;
+
+    const canvas = currentEditorCropper.getCroppedCanvas({
+        maxWidth: 2048,
+        maxHeight: 2048
+    });
+
+    if (!canvas) return;
+
+    canvas.toBlob((blob) => {
+        const index = currentMediaAttachments.findIndex(m => m.id === currentEditingMediaId);
+        if (index !== -1) {
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = () => {
+                const base64data = reader.result;
+                currentMediaAttachments[index].base64 = base64data;
+                currentMediaAttachments[index].file = new File([blob], "edited_image.jpg", { type: "image/jpeg" });
+                
+                renderInputPreviews();
+                history.back();
+            }
+        }
+    }, 'image/jpeg', 0.9);
 }
 
 if (window.marked && window.hljs) {

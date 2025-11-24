@@ -1,15 +1,16 @@
 <!DOCTYPE html>
+
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Chat 2B</title>
-    <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="local_assets/css/all.min.css">
-    <link rel="stylesheet" href="local_assets/css/dracula.min.css">
-    <link rel="stylesheet" href="style.css">
-
-    <style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>Chat 2B</title>
+<link href="manifest.json" rel="manifest"/>
+<link href="local_assets/css/all.min.css" rel="stylesheet"/>
+<link href="local_assets/css/dracula.min.css" rel="stylesheet"/>
+<link href="style.css" rel="stylesheet"/>
+<link href="local_assets/css/cropper.min.css" rel="stylesheet">
+<style>
 
         #app-settings-modal h2 {
             color: white;
@@ -64,182 +65,167 @@
             text-align: center;
         }
     </style>
-</head>
+</link></meta></head>
 <body>
-    <aside class="sidebar" id="sidebar">
-        <button class="new-chat-btn">
-            <i class="fas fa-plus"></i>
-            <span>Nova Conversa</span>
-        </button>
-        <div class="search-container">
-            <button id="search-btn" class="search-btn" title="Buscar nas conversas">
-                <i class="fas fa-search"></i>
-            </button>
-        </div>
-        <nav class="chat-history"></nav>
-    </aside>
-
-    <div class="overlay" id="sidebar-overlay"></div>
-
-    <main class="main-content">
-        <header class="top-bar">
-            <button id="mobile-menu-btn" class="mobile-menu-btn top-bar-action-btn" title="Menu">
-                <i class="fas fa-bars"></i>
-            </button>
-            <input type="text" id="api-source-input" class="server-url-input" placeholder="URL Ollama ou 'gemini'" value="Gemini">
-            <select id="model-select" class="model-selector">
-                <option value="">Carregando modelos...</option>
-            </select>
-            <button id="install-pwa-btn" class="top-bar-action-btn" title="Instalar Aplicativo" style="display: none;">
-                <i class="fas fa-download"></i>
-            </button>
-            <button id="app-settings-btn" class="top-bar-action-btn" title="Configurações">
-                <i class="fas fa-cog"></i>
-            </button>
-        </header>
-
-        <div class="chat-container">
-            <div class="scroll-container">
-                <div class="messages" id="messages">
-                    <div class="welcome-screen">
-                        <h2>Chat 2B</h2>
-                        <p>Como posso ajudar você hoje?</p>
-                    </div>
-                </div>
-                <div id="typing-animation" class="message bot-message">
-                    <div class="typing-container">
-                        <div class="typing-dots">
-                            <div class="typing-dot"></div>
-                            <div class="typing-dot"></div>
-                            <div class="typing-dot"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <footer class="bottom-bar">
-            <div class="input-area-container">
-                <div id="image-preview-container">
-                <img id="image-preview" src="#" alt="Image preview" style="display: none;"/>
-                <video id="video-preview" autoplay muted loop style="display: none;"></video>
-                <button id="remove-image-btn" title="Remover mídia">&times;</button>
-            </div>
-                <form id="chat-form" class="input-wrapper">
-                    <div class="input-area">
-                        <textarea id="message-input" placeholder="" rows="1"></textarea>
-                    </div>
-                    <div class="input-actions">
-                        <input type="file" id="image-file-input" accept="image/*,video/*" style="display: none;">
-                        <button type="button" id="attach-image-btn" class="attach-btn" title="Anexar mídia">
-                            <i class="fas fa-paperclip"></i>
-                        </button>
-                        <button type="submit" id="send-button" class="send-btn" disabled>
-                            <i class="fas fa-arrow-up"></i>
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </footer>
-    </main>
-
-    <!-- Overlays e Modais -->
-    <div id="delete-confirm-overlay" class="modal-overlay">
-        <div id="delete-confirm-modal" class="modal">
-            <h2><i class="fas fa-exclamation-triangle"></i> Confirmar Exclusão</h2>
-            <p>Você tem certeza absoluta que quer excluir a conversa "<strong id="confirm-delete-chat-title"></strong>"?</p>
-            <p class="warning-text">Essa ação não pode ser desfeita!</p>
-            <div class="modal-actions">
-                <button id="cancel-delete-btn" class="btn btn-secondary"><i class="fas fa-times"></i> Cancelar</button>
-                <button id="confirm-delete-btn" class="btn btn-danger"><i class="fas fa-trash-alt"></i> Excluir Permanentemente</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="search-overlay" class="search-overlay">
-        <div class="search-modal">
-            <div class="search-header">
-                <div class="search-input-container">
-                    <i class="fas fa-search"></i>
-                    <input type="text" id="search-input" placeholder="Buscar em chats..." />
-                    <button id="clear-search" class="clear-search-btn"><i class="fas fa-times"></i></button>
-                </div>
-                <button id="close-search" class="close-search-btn"><i class="fas fa-times"></i></button>
-            </div>
-            <div id="search-results" class="search-results"></div>
-        </div>
-    </div>
-
-    <div id="app-settings-modal-overlay" class="modal-overlay">
-        <div id="app-settings-modal" class="modal">
-            <h2><i class="fas fa-cogs"></i> Configurações de 2B</h2>
-            <div class="app-settings-content">
-                <div id="api-key-setup-guide">
-                    <h4><i class="fas fa-magic"></i> Bem-vindo(a) ao Chat 2B!</h4>
-                    <p>Para usar a inteligência do Gemini, é necessária uma chave de API do Google AI. É um processo rápido e gratuito.</p>
-                    <div class="modal-actions">
-                        <button id="guide-have-key-btn" class="btn btn-secondary"><i class="fas fa-key"></i> Já tenho uma chave</button>
-                        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" id="guide-create-key-btn" class="btn btn-primary">
-                            <i class="fas fa-external-link-alt"></i> Criar chave (grátis)
+<aside class="sidebar" id="sidebar">
+<button class="new-chat-btn">
+<i class="fas fa-plus"></i>
+<span>Nova Conversa</span>
+</button>
+<div class="search-container">
+<button class="search-btn" id="search-btn" title="Buscar nas conversas">
+<i class="fas fa-search"></i>
+</button>
+</div>
+<nav class="chat-history"></nav>
+</aside>
+<div class="overlay" id="sidebar-overlay"></div>
+<main class="main-content">
+<header class="top-bar">
+<button class="mobile-menu-btn top-bar-action-btn" id="mobile-menu-btn" title="Menu">
+<i class="fas fa-bars"></i>
+</button>
+<input class="server-url-input" id="api-source-input" placeholder="URL Ollama ou 'gemini'" type="text" value="Gemini"/>
+<select class="model-selector" id="model-select">
+<option value="">Carregando modelos...</option>
+</select>
+<button class="top-bar-action-btn" id="install-pwa-btn" style="display: none;" title="Instalar Aplicativo">
+<i class="fas fa-download"></i>
+</button>
+<button class="top-bar-action-btn" id="app-settings-btn" title="Configurações">
+<i class="fas fa-cog"></i>
+</button>
+</header>
+<div class="chat-container">
+<div class="scroll-container">
+<div class="messages" id="messages">
+<div class="welcome-screen">
+<h2>Chat 2B</h2>
+<p>Como posso ajudar você hoje?</p>
+</div>
+</div>
+<div class="message bot-message" id="typing-animation">
+<div class="typing-container">
+<div class="typing-dots">
+<div class="typing-dot"></div>
+<div class="typing-dot"></div>
+<div class="typing-dot"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<footer class="bottom-bar">
+<div class="input-area-container">
+<div id="image-preview-container">
+<img alt="Image preview" id="image-preview" src="#" style="display: none;"/>
+<video autoplay="" id="video-preview" loop="" muted="" style="display: none;"></video>
+<button id="remove-image-btn" title="Remover mídia">×</button>
+</div>
+<form class="input-wrapper" id="chat-form">
+<div class="input-area">
+<textarea id="message-input" placeholder="" rows="1"></textarea>
+</div>
+<div class="input-actions">
+<input accept="image/*,video/*" id="image-file-input" style="display: none;" type="file"/>
+<button class="attach-btn" id="attach-image-btn" title="Anexar mídia" type="button">
+<i class="fas fa-paperclip"></i>
+</button>
+<button class="send-btn" disabled="" id="send-button" type="submit">
+<i class="fas fa-arrow-up"></i>
+</button>
+</div>
+</form>
+</div>
+</footer>
+</main>
+<!-- Overlays e Modais -->
+<div class="modal-overlay" id="delete-confirm-overlay">
+<div class="modal" id="delete-confirm-modal">
+<h2><i class="fas fa-exclamation-triangle"></i> Confirmar Exclusão</h2>
+<p>Você tem certeza absoluta que quer excluir a conversa "<strong id="confirm-delete-chat-title"></strong>"?</p>
+<p class="warning-text">Essa ação não pode ser desfeita!</p>
+<div class="modal-actions">
+<button class="btn btn-secondary" id="cancel-delete-btn"><i class="fas fa-times"></i> Cancelar</button>
+<button class="btn btn-danger" id="confirm-delete-btn"><i class="fas fa-trash-alt"></i> Excluir Permanentemente</button>
+</div>
+</div>
+</div>
+<div class="search-overlay" id="search-overlay">
+<div class="search-modal">
+<div class="search-header">
+<div class="search-input-container">
+<i class="fas fa-search"></i>
+<input id="search-input" placeholder="Buscar em chats..." type="text">
+<button class="clear-search-btn" id="clear-search"><i class="fas fa-times"></i></button>
+</input></div>
+<button class="close-search-btn" id="close-search"><i class="fas fa-times"></i></button>
+</div>
+<div class="search-results" id="search-results"></div>
+</div>
+</div>
+<div class="modal-overlay" id="app-settings-modal-overlay">
+<div class="modal" id="app-settings-modal">
+<h2><i class="fas fa-cogs"></i> Configurações de 2B</h2>
+<div class="app-settings-content">
+<div id="api-key-setup-guide">
+<h4><i class="fas fa-magic"></i> Bem-vindo(a) ao Chat 2B!</h4>
+<p>Para usar a inteligência do Gemini, é necessária uma chave de API do Google AI. É um processo rápido e gratuito.</p>
+<div class="modal-actions">
+<button class="btn btn-secondary" id="guide-have-key-btn"><i class="fas fa-key"></i> Já tenho uma chave</button>
+<a class="btn btn-primary" href="https://aistudio.google.com/apikey" id="guide-create-key-btn" rel="noopener noreferrer" target="_blank">
+<i class="fas fa-external-link-alt"></i> Criar chave (grátis)
                         </a>
-                    </div>
-                </div>
-                
-                <div class="setting-item">
-                    <label for="user-name-input">Seu Nome (Opcional)</label>
-                    <input type="text" id="user-name-input" placeholder="Como a IA deve se referir a você?">
-                </div>
-
-                <div class="setting-item">
-                    <label for="system-prompt-input">Prompt do Sistema:</label>
-                    <textarea id="system-prompt-input" rows="8"></textarea>
-                </div>
-
-                <div class="setting-item setting-item-inline">
-                    <label for="temperature-input">Temperatura:</label>
-                    <input type="range" id="temperature-input" min="0" max="2" step="0.1">
-                    <span id="temperature-value-display"></span>
-                </div>
-
-                <div class="setting-item">
-                    <label for="gemini-api-key-input">Chave de API (Google AI):</label>
-                    <div class="api-key-input-container">
-                        <input type="password" id="gemini-api-key-input" placeholder="Cole sua chave aqui...">
-                        <span id="gemini-api-key-display"></span>
-                        <button id="api-key-toggle-btn" title="Mostrar/Ocultar chave"><i class="fas fa-eye"></i></button>
-                    </div>
-                    <small class="api-key-helper-text">
-                        Caso não tenha uma, crie a sua <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">aqui</a>.
+</div>
+</div>
+<div class="setting-item">
+<label for="user-name-input">Seu Nome (Opcional)</label>
+<input id="user-name-input" placeholder="Como a IA deve se referir a você?" type="text"/>
+</div>
+<div class="setting-item">
+<label for="system-prompt-input">Prompt do Sistema:</label>
+<textarea id="system-prompt-input" rows="8"></textarea>
+</div>
+<div class="setting-item setting-item-inline">
+<label for="temperature-input">Temperatura:</label>
+<input id="temperature-input" max="2" min="0" step="0.1" type="range"/>
+<span id="temperature-value-display"></span>
+</div>
+<div class="setting-item">
+<label for="gemini-api-key-input">Chave de API (Google AI):</label>
+<div class="api-key-input-container">
+<input id="gemini-api-key-input" placeholder="Cole sua chave aqui..." type="password"/>
+<span id="gemini-api-key-display"></span>
+<button id="api-key-toggle-btn" title="Mostrar/Ocultar chave"><i class="fas fa-eye"></i></button>
+</div>
+<small class="api-key-helper-text">
+                        Caso não tenha uma, crie a sua <a href="https://aistudio.google.com/apikey" rel="noopener noreferrer" target="_blank">aqui</a>.
                     </small>
-                </div>
-                 
-                 <div id="settings-feedback"></div>
-            </div>
-            <div class="modal-actions">
-                <button id="cancel-app-settings-btn" class="btn btn-secondary"><i class="fas fa-times"></i> Cancelar</button>
-                <button id="save-app-settings-btn" class="btn btn-primary"><i class="fas fa-save"></i> Salvar</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="connection-status-toast" class="connection-toast hidden">
-        <i class="fas fa-wifi"></i>
-        <span id="connection-status-text"></span>
-    </div>
-
-    <!-- Scripts -->
-    <script src="local_assets/js/marked.min.js"></script>
-    <script src="local_assets/js/highlight.min.js"></script>
-    <script>hljs.highlightAll();</script>
-    <script type="module" src="script.js"></script>
-    
-    <script type="text/javascript">
+</div>
+<div id="settings-feedback"></div>
+</div>
+<div class="modal-actions">
+<button class="btn btn-secondary" id="cancel-app-settings-btn"><i class="fas fa-times"></i> Cancelar</button>
+<button class="btn btn-primary" id="save-app-settings-btn"><i class="fas fa-save"></i> Salvar</button>
+</div>
+</div>
+</div>
+<div class="connection-toast hidden" id="connection-status-toast">
+<i class="fas fa-wifi"></i>
+<span id="connection-status-text"></span>
+</div>
+<!-- Scripts -->
+<script src="local_assets/js/marked.min.js"></script>
+<script src="local_assets/js/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+<script src="script.js" type="module"></script>
+<script type="text/javascript">
   function onWebAppReady() {
     if (typeof Website2APK !== 'undefined') {
       Website2APK.notifyPageReady();
     }
   }
 </script>
-    
+<script src="local_assets/js/cropper.min.js"></script>
 </body>
 </html>
