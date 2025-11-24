@@ -2624,6 +2624,25 @@ function exportChatHistory(chatId) {
     URL.revokeObjectURL(url);
 }
 
+
+window.handlePastedImageFromNative = function(mimeType, base64String) {
+    if (mimeType && base64String) {
+        const fullBase64Url = `data:${mimeType};base64,${base64String}`;
+        
+        const byteCharacters = atob(base64String);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: mimeType });
+        
+        const file = new File([blob], "pasted_image.png", { type: mimeType });
+        
+        processFiles([file]);
+    }
+};
+
 function handlePaste(event) {
     if (currentApiProvider !== "gemini") return;
     const items = (event.clipboardData || event.originalEvent.clipboardData)?.items;
@@ -2642,27 +2661,10 @@ function handlePaste(event) {
     }
 
     if (pastedFiles.length > 0) {
-        event.preventDefault(); 
+        event.preventDefault();
         clearImagePreview(); 
         
         processFiles(pastedFiles);
-    }
-}
-
-function handlePaste(event) {
-    if (currentApiProvider !== "gemini") return;
-    const items = (event.clipboardData || event.originalEvent.clipboardData)?.items;
-    if (!items) return;
-
-    for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf("image") !== -1) {
-            event.preventDefault(); 
-            const file = items[i].getAsFile();
-            if (file) {
-                processFiles([file]);
-            }
-            break; 
-        }
     }
 }
 
