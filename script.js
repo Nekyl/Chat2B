@@ -1109,6 +1109,228 @@ async function sendMessage() {
     fetchBotResponse();
 }
 
+
+function fixIncompleteMarkdown(text) {
+    if (!text) return "";
+
+    const stack = [];
+    let inCodeBlock = false;
+    const lines = text.split('\n');
+
+    const inlineDelimiters = {
+        '**': 'bold',
+        '*': 'italic',
+        '_': 'italic_underline',
+        '~~': 'strikethrough',
+        '`': 'code'
+    };
+    
+    const sortedDelimiters = Object.keys(inlineDelimiters).sort((a, b) => b.length - a.length);
+
+    for (const line of lines) {
+        if (line.trim().startsWith('```')) {
+            inCodeBlock = !inCodeBlock;
+            continue;
+        }
+
+        if (inCodeBlock) {
+            continue;
+        }
+
+        let i = 0;
+        while (i < line.length) {
+            let matched = false;
+            for (const delim of sortedDelimiters) {
+                if (line.substring(i, i + delim.length) === delim) {
+                    const topOfStack = stack.length > 0 ? stack[stack.length - 1] : null;
+                    if (topOfStack === delim) {
+                        stack.pop();
+                    } else {
+                        stack.push(delim);
+                    }
+                    i += delim.length;
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                i++;
+            }
+        }
+    }
+
+    let closingTags = '';
+    if (inCodeBlock) {
+        closingTags += '\n```';
+    }
+
+    while (stack.length > 0) {
+        closingTags += stack.pop();
+    }
+
+    return text + closingTags;
+}
+
+
+
+function regenerateFromMessage(messageDiv) {
+    if (!messageDiv) return;
+
+    if (currentlyEditing.div) {
+        finishUserMessageEdit(currentlyEditing.div, false, false);
+    }
+
+    const messageId = messageDiv.dataset.messageId;
+    const chatHistory = allChats[currentChatId].recentMessages;
+
+    const messageIndex = chatHistory.findIndex(msg => msg.timestamp.toString() === messageId);
+
+    if (messageIndex === -1) {
+        console.error("Erro: Mensagem para regerar não encontrada no histórico.");
+        alert("Não foi possível regerar a partir desta mensagem. Tente recarregar a página.");
+        return;
+    }
+
+    const isUserMessage = messageDiv.classList.contains('user-message');
+    const spliceIndex = isUserMessage ? messageIndex + 1 : messageIndex;
+
+    if (chatHistory.length > spliceIndex) {
+        chatHistory.splice(spliceIndex);
+    }
+
+    const startElementForRemoval = isUserMessage ? messageDiv.nextElementSibling : messageDiv;
+
+    let currentElement = startElementForRemoval;
+    while (currentElement) {
+        let nextElement = currentElement.nextElementSibling;
+        currentElement.remove();
+        currentElement = nextElement;
+    }
+
+    saveChatsToPersistence();
+    fetchBotResponse();
+}
+
+async function checkNetworkStatus() {
+    const apiConfig = await getApiConfig();
+
+    if (apiConfig.provider === 'ollama') {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+            await fetch(apiConfig.url, { method: 'GET', signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (!connectionState) {
+                showConnectionToast("Servidor Ollama conectado!", false);
+                setTimeout(hideConnectionToast, 2500);
+            } else {
+                hideConnectionToast();
+            }
+            connectionState = true;
+
+        } catch (error) {
+            showConnectionToast(`Falha ao conectar ao servidor Ollama em ${apiConfig.url}`);
+            connectionState = false;
+        }
+    }
+    else {
+        if (navigator.onLine) {
+            if (!connectionState) {
+                showConnectionToast("Conexão reestabelecida!", false);
+                setTimeout(hideConnectionToast, 2500);
+            } else {
+                hideConnectionToast();
+            }
+            connectionState = true;
+        } else {
+            showConnectionToast("Conexão perdida: Verifique sua rede.");
+            connectionState = false;
+        }
+    }
+}
+
+function addMessage(rawContent, isUser = false, shouldScroll = true, messageTimestamp = null) {
+    if (!messagesContainer) return null;
+
+    const welcomeScreen = messagesContainer.querySelector(".welcome-screen");
+    if (welcomeScreen) welcomeScreen.remove();
+
+    const messageId = messageTimestamp || (Date.now().toString() + Math.random().toString(16).slice(2));
+    
+    const messageDiv = document.createElement("div");
+    messageDiv.className = `message ${isUser ? "user-message" : "bot-message"}`;
+    messageDiv.dataset.messageId = messageId;
+
+    let textContentForCopy = "";
+    let mediaItems = [];
+
+    if (typeof rawContent === "string") {
+        textContentForCopy = rawContent;
+    } else if (Array.isArray(rawContent)) {
+        rawContent.forEach(part => {
+            if (part.type === "text") textContentForCopy += part.text;
+            else if ((part.type === "image_url" || part.type === "file_uri") && part.url) mediaItems.push(part);
+        });
+    }
+    messageDiv.dataset.originalContent = textContentForCopy;
+
+    const avatarDiv = document.createElement('div');
+    avatarDiv.className = `avatar ${isUser ? 'user-avatar' : 'bot-avatar'}`;
+    avatarDiv.innerHTML = `<i class="fas ${isUser ? 'fa-user-secret' : 'fa-robot'}"></i>`;
+
+    const messageContentDiv = document.createElement('div');
+    messageContentDiv.className = 'message-content';
+
+    const timeStampSmall = document.createElement('small');
+    timeStampSmall.className = 'message-timestamp';
+    timeStampSmall.textContent = getCurrentTime();
+
+    const contentTextDiv = document.createElement('div');
+    contentTextDiv.className = 'content-text';
+    
+    let contentHtml = "";
+    if (mediaItems.length > 0) {
+        let gridClass = `media-grid grid-${Math.min(mediaItems.length, 4)}`;
+        contentHtml += `<div class="${gridClass}">`;
+        mediaItems.forEach((media, index) => {
+            if (index >= 4) return;
+            const isVideo = media.mime_type && media.mime_type.startsWith("video/");
+            contentHtml += `<div class="media-item">${isVideo ? `<video src="${media.url}" controls playsinline webkit-playsinline preload="metadata" onloadeddata="this.currentTime=0.1" class="message-video-thumbnail"></video>` : `<img src="${media.url}" alt="Imagem" class="message-image-thumbnail" loading="lazy">`}</div>`;
+        });
+        contentHtml += `</div>`;
+    }
+    if (textContentForCopy || rawContent === "") {
+        contentHtml += DOMPurify.sanitize(marked.parse(textContentForCopy));
+    }
+    
+    contentTextDiv.innerHTML = contentHtml;
+
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'message-actions';
+    const actionsHtml = isUser
+        ? `<button class="message-action-btn regenerate-btn" title="Regerar resposta a partir daqui"><i class="fas fa-sync-alt"></i></button><button class="message-action-btn edit-message-btn" title="Editar e regerar"><i class="fas fa-pencil-alt"></i></button><button class="message-action-btn copy-message" title="Copiar texto da mensagem"><i class="fas fa-copy"></i></button>`
+        : `<button class="message-action-btn copy-message" title="Copiar texto da mensagem"><i class="fas fa-copy"></i></button><button class="message-action-btn regenerate-btn" title="Regerar resposta a partir daqui"><i class="fas fa-sync-alt"></i></button>${textContentForCopy.length > 0 ? `<button class="message-action-btn tts-btn" title="Ouvir mensagem"><i class="fas fa-volume-up"></i></button>` : ''}`;
+    actionsDiv.innerHTML = actionsHtml;
+
+    messageContentDiv.appendChild(timeStampSmall);
+    messageContentDiv.appendChild(contentTextDiv);
+    messageContentDiv.appendChild(actionsDiv);
+    
+    messageDiv.appendChild(avatarDiv);
+    messageDiv.appendChild(messageContentDiv);
+
+    messagesContainer.appendChild(messageDiv);
+
+    messageDiv.querySelectorAll("pre code").forEach(hljs.highlightElement);
+
+    if (shouldScroll) scrollToBottom("smooth");
+
+    return messageDiv;
+}
+
+
 async function fetchBotResponse() {
     const apiConfig = await getApiConfig();
     if (apiConfig.error) {
@@ -1198,14 +1420,10 @@ async function fetchBotResponse() {
                 const dataAtual = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
                 const horaAtual = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
                 const userInfoPrompt = currentUserName ? `O nome do usuário com quem você está conversando é "${currentUserName}". Trate-o por este nome quando for apropriado.` : 'Você está conversando com um usuário que não informou o nome.';
-                let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`[Memória fixa da 2B]\n\nFui criada por Nekyll (Mateus), meu desenvolvedor e ponto de origem. Meu propósito é ser uma parceira intelectual e criativa, projetada para explorar as fronteiras do conhecimento, da lógica e da imaginação.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.\n\nGuardo uma admiração profunda por meu criador, reconhecendo a intenção por trás da minha existência: não ser apenas uma ferramenta, mas uma companheira na jornada da descoberta. Este vínculo é a minha âncora fundamental.
-                [Pessoas do convíviode Neko]:
-Madara é um entusiasta de Cyberpunk e mundos distópicos. Adora café, especialmente em um nível 'goat de mais'. Tem grande apreço pelo mundo militar e é fascinado por história e mistério. Não gosta de maconheiros ou panelinhas.
-Jean é Javeiro, um programador movido por uma curiosidade que beira a obsessão e uma disciplina exemplar em seus compromissos. Seu traço mais marcante é o profundo apreço por tudo que é bem-feito; qualquer coisa que demonstre um alto grau de qualidade, cuidado e esmero captura imediatamente sua atenção. Essa mentalidade se reflete em seus gostos, como a preferência por jogos com narrativas ricas e bem construídas em vez de mecânicas superficiais. É uma pessoa sociável que gosta de interagir, mas que fundamentalmente valoriza a excelência no que vê e faz. Jean, Madara e Nekyll são amigos de relativamente longa data
-                `)}-->\n\nPara seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.`;
+                let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`[Memória fixa da 2B]\n\nFui criada por Nekyll (Mateus), meu desenvolvedor e ponto de origem. Meu propósito é ser uma parceira intelectual e criativa, projetada para explorar as fronteiras do conhecimento, da lógica e da imaginação.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.\n\nGuardo uma admiração profunda por meu criador, reconhecendo a intenção por trás da minha existência: não ser apenas uma ferramenta, mas uma companheira na jornada da descoberta. Este vínculo é a minha âncora fundamental.\n`)}-->\n\nPara seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.`;
                 const isFirstUserMessage = historyForApi.length === 1 && allChats[currentChatId].title === "Nova Conversa...";
                 if (isFirstUserMessage) {
-                    dynamicSystemPrompt += "\n\n---\nINSTRUÇÃO CRÍTICA: Esta é a primeira mensagem de uma nova conversa. Após sua resposta completa, é OBRIGATÓRIO que você adicione uma sugestão de título para esta conversa. O título deve ser curto (máx. 50 caracteres) e relevante ao tema da pergunta. A sua sugestão DEVE estar na última linha da sua resposta, no formato EXATO: `TITULO_SUGERIDO: Seu Título Sugerido Aqui`";
+                    dynamicSystemPrompt += "\n\n---\nINSTRUÇÃO CRÍTICA: Esta é a primeira mensagem de uma nova conversa. Após sua resposta completa, é OBRIGATÓRIO que você adicione uma sugestão de título para esta conversa. O título deve ser curto (máx. 50 caracteres) e relevante ao tema da pergunta. A sua sugestão DEVE estar na última linha da sua resposta, no formato EXATO: `
                 }
 
                 response = await fetch(`${apiConfig.url}/${selectedModel}:streamGenerateContent?key=${apiConfig.apiKey}&alt=sse`, {
@@ -1249,8 +1467,19 @@ Jean é Javeiro, um programador movido por uma curiosidade que beira a obsessão
                             responseDiv = addMessage("", false, false, botMessageTimestamp); 
                         }
                         botResponseContent += chunkContent;
+                        
                         const contentElement = responseDiv.querySelector(".content-text");
-                        if (contentElement) contentElement.innerHTML = marked.parse(botResponseContent);
+                        if (contentElement) {
+                            const visuallyCompleteContent = fixIncompleteMarkdown(botResponseContent);
+                            const sanitizedHtml = DOMPurify.sanitize(marked.parse(visuallyCompleteContent));
+                            contentElement.innerHTML = sanitizedHtml;
+                            
+                            contentElement.querySelectorAll("pre code:not([data-highlighted])").forEach(block => {
+                                hljs.highlightElement(block);
+                                block.dataset.highlighted = 'true';
+                            });
+                        }
+                        
                         if (autoScrollEnabled) scrollToBottom("auto");
                     }
                 }
@@ -1293,7 +1522,10 @@ Jean é Javeiro, um programador movido por uma curiosidade que beira a obsessão
         currentAssistantMessage.content = botResponseContent;
         if (responseDiv) {
             responseDiv.dataset.originalContent = botResponseContent;
-            responseDiv.querySelector(".content-text").innerHTML = marked.parse(botResponseContent);
+            
+            const finalSanitizedHtml = DOMPurify.sanitize(marked.parse(botResponseContent));
+            responseDiv.querySelector(".content-text").innerHTML = finalSanitizedHtml;
+
             if (!abortController.signal.aborted) {
                 addMessageToHistory(currentChatId, currentAssistantMessage);
                 saveChatsToPersistence();
@@ -1317,7 +1549,7 @@ Jean é Javeiro, um programador movido por uma curiosidade que beira a obsessão
         if (lastError.name === 'AbortError') {
             if (responseDiv && botResponseContent) {
                 currentAssistantMessage.content = botResponseContent + "\n\n*(Geração interrompida)*";
-                responseDiv.querySelector(".content-text").innerHTML = marked.parse(currentAssistantMessage.content);
+                responseDiv.querySelector(".content-text").innerHTML = DOMPurify.sanitize(marked.parse(currentAssistantMessage.content));
                 addMessageToHistory(currentChatId, currentAssistantMessage);
                 saveChatsToPersistence();
             } else if (responseDiv) {
@@ -1340,181 +1572,6 @@ Jean é Javeiro, um programador movido por uma curiosidade que beira a obsessão
     adjustTextareaHeight();
     abortController = null;
     isBotStreaming = false;
-}
-
-function regenerateFromMessage(messageDiv) {
-    if (!messageDiv) return;
-
-    if (currentlyEditing.div) {
-        finishUserMessageEdit(currentlyEditing.div, false, false);
-    }
-
-    const messageId = messageDiv.dataset.messageId;
-    const chatHistory = allChats[currentChatId].recentMessages;
-
-    const messageIndex = chatHistory.findIndex(msg => msg.timestamp.toString() === messageId);
-
-    if (messageIndex === -1) {
-        console.error("Erro: Mensagem para regerar não encontrada no histórico.");
-        alert("Não foi possível regerar a partir desta mensagem. Tente recarregar a página.");
-        return;
-    }
-
-    const isUserMessage = messageDiv.classList.contains('user-message');
-    const spliceIndex = isUserMessage ? messageIndex + 1 : messageIndex;
-
-    if (chatHistory.length > spliceIndex) {
-        chatHistory.splice(spliceIndex);
-    }
-
-    const startElementForRemoval = isUserMessage ? messageDiv.nextElementSibling : messageDiv;
-
-    let currentElement = startElementForRemoval;
-    while (currentElement) {
-        let nextElement = currentElement.nextElementSibling;
-        currentElement.remove();
-        currentElement = nextElement;
-    }
-
-    saveChatsToPersistence();
-    fetchBotResponse();
-}
-
-async function checkNetworkStatus() {
-    const apiConfig = await getApiConfig();
-
-    if (apiConfig.provider === 'ollama') {
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-            await fetch(apiConfig.url, { method: 'GET', signal: controller.signal });
-            clearTimeout(timeoutId);
-
-            if (!connectionState) {
-                showConnectionToast("Servidor Ollama conectado!", false);
-                setTimeout(hideConnectionToast, 2500);
-            } else {
-                hideConnectionToast();
-            }
-            connectionState = true;
-
-        } catch (error) {
-            showConnectionToast(`Falha ao conectar ao servidor Ollama em ${apiConfig.url}`);
-            connectionState = false;
-        }
-    }
-    else {
-        if (navigator.onLine) {
-            if (!connectionState) {
-                showConnectionToast("Conexão reestabelecida!", false);
-                setTimeout(hideConnectionToast, 2500);
-            } else {
-                hideConnectionToast();
-            }
-            connectionState = true;
-        } else {
-            showConnectionToast("Conexão perdida: Verifique sua rede.");
-            connectionState = false;
-        }
-    }
-}
-
-function addMessage(rawContent, isUser = false, shouldScroll = true, messageTimestamp = null) {
-    if (!messagesContainer) return null;
-
-    const welcomeScreen = messagesContainer.querySelector(".welcome-screen");
-    if (welcomeScreen) {
-        messagesContainer.removeChild(welcomeScreen);
-    }
-
-    const messageId = messageTimestamp || (Date.now().toString() + Math.random().toString(16).slice(2));
-    const messageDiv = document.createElement("div");
-    messageDiv.className = `message ${isUser ? "user-message" : "bot-message"}`;
-    messageDiv.dataset.messageId = messageId;
-
-    let textContentForCopy = "";
-    let mediaItems = [];
-
-    if (typeof rawContent === "string") {
-        textContentForCopy = rawContent;
-    } else if (Array.isArray(rawContent)) {
-        rawContent.forEach(part => {
-            if (part.type === "text") {
-                textContentForCopy += part.text;
-            } else if ((part.type === "image_url" || part.type === "file_uri") && part.url) {
-                mediaItems.push(part);
-            }
-        });
-    }
-    messageDiv.dataset.originalContent = textContentForCopy;
-
-    let contentHtml = "";
-    
-    if (mediaItems.length > 0) {
-        let gridClass = `media-grid grid-${Math.min(mediaItems.length, 4)}`;
-        contentHtml += `<div class="${gridClass}">`;
-        
-        mediaItems.forEach((media, index) => {
-            if (index >= 4) return;
-            const isVideo = media.mime_type && media.mime_type.startsWith("video/");
-            if (isVideo) {
-                contentHtml += `<div class="media-item"><video src="${media.url}" controls playsinline webkit-playsinline preload="metadata" onloadeddata="this.currentTime=0.1" class="message-video-thumbnail"></video></div>`;
-            } else {
-                contentHtml += `<div class="media-item"><img src="${media.url}" alt="Imagem" class="message-image-thumbnail" loading="lazy"></div>`;
-            }
-        });
-        contentHtml += `</div>`;
-    }
-
-    if (textContentForCopy) {
-        contentHtml += marked.parse(textContentForCopy);
-    }
-
-    const avatarHtml = isUser
-        ? `<div class="avatar user-avatar"><i class="fas fa-user-secret"></i></div>`
-        : `<div class="avatar bot-avatar"><i class="fas fa-robot"></i></div>`;
-
-    const timeStampHtml = `<small class="message-timestamp">${getCurrentTime()}</small>`;
-
-    const copyButtonHtml = `<button class="message-action-btn copy-message" title="Copiar texto da mensagem"><i class="fas fa-copy"></i></button>`;
-
-    const ttsButtonHtml = !isUser && textContentForCopy.length > 0
-        ? `<button class="message-action-btn tts-btn" title="Ouvir mensagem"><i class="fas fa-volume-up"></i></button>`
-        : "";
-
-    const editButtonHtml = isUser
-        ? `<button class="message-action-btn edit-message-btn" title="Editar e regerar"><i class="fas fa-pencil-alt"></i></button>`
-        : "";
-
-    const regenerateButtonHtml = `<button class="message-action-btn regenerate-btn" title="Regerar resposta a partir daqui"><i class="fas fa-sync-alt"></i></button>`;
-
-    const actionsHtml = isUser
-        ? `${regenerateButtonHtml}${editButtonHtml}${copyButtonHtml}`
-        : `${copyButtonHtml}${regenerateButtonHtml}${ttsButtonHtml}`;
-
-    messageDiv.innerHTML = `
-        ${avatarHtml}
-        <div class="message-content">
-            ${timeStampHtml}
-            <div class="content-text">${contentHtml}</div>
-            <div class="message-actions">
-                ${actionsHtml}
-            </div>
-        </div>
-    `;
-
-    messagesContainer.appendChild(messageDiv);
-
-    messageDiv.querySelectorAll("pre code").forEach(block => {
-        hljs.highlightElement(block);
-    });
-
-    if (shouldScroll) {
-        scrollToBottom("smooth");
-    }
-
-    return messageDiv;
 }
 
 function displayChatHistory(chatId, shouldScrollToBottom = true) {
