@@ -77,6 +77,12 @@ let currentTemperature = DEFAULT_TEMPERATURE;
 let currentUserSystemPrompt = "";
 const USER_NAME_STORAGE_KEY = "2b_chat_user_name";
 
+const purifyConfig = {
+    ADD_TAGS: ['video', 'source', 'img'],
+    ADD_ATTR: ['controls', 'autoplay', 'loop', 'muted', 'playsinline', 'webkit-playsinline', 'preload', 'src', 'alt', 'class', 'style'],
+};
+
+
 async function initializeApp() {
     loadAppSettingsFromLocalStorage();
     await loadChatsFromStorageData();
@@ -1291,7 +1297,7 @@ async function fetchBotResponse() {
         currentAssistantMessage.content = botResponseContent;
         if (responseDiv) {
             responseDiv.dataset.originalContent = botResponseContent;
-            responseDiv.querySelector(".content-text").innerHTML = DOMPurify.sanitize(marked.parse(botResponseContent));
+            responseDiv.querySelector(".content-text").innerHTML = DOMPurify.sanitize(marked.parse(botResponseContent), purifyConfig);
             if (!abortController.signal.aborted) {
                 addMessageToHistory(currentChatId, currentAssistantMessage);
                 saveChatsToPersistence();
