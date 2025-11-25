@@ -1297,7 +1297,7 @@ async function fetchBotResponse() {
         currentAssistantMessage.content = botResponseContent;
         if (responseDiv) {
             responseDiv.dataset.originalContent = botResponseContent;
-            responseDiv.querySelector(".content-text").innerHTML = DOMPurify.sanitize(marked.parse(botResponseContent), purifyConfig);
+            responseDiv.querySelector(".content-text").innerHTML = DOMPurify.sanitize(marked.parse(botResponseContent));
             if (!abortController.signal.aborted) {
                 addMessageToHistory(currentChatId, currentAssistantMessage);
                 saveChatsToPersistence();
@@ -1508,7 +1508,7 @@ function addMessage(rawContent, isUser = false, shouldScroll = true, messageTime
             </div>
         </div>
     `;
- 
+
     messagesContainer.appendChild(messageDiv);
 
     const videos = messageDiv.querySelectorAll('video');
