@@ -1508,9 +1508,22 @@ function addMessage(rawContent, isUser = false, shouldScroll = true, messageTime
             </div>
         </div>
     `;
-
+ 
     messagesContainer.appendChild(messageDiv);
 
+    const videos = messageDiv.querySelectorAll('video');
+    videos.forEach(video => {
+        video.preload = "metadata"; 
+        video.onloadeddata = function() {
+          
+            this.currentTime = 0.1;
+        };
+        
+        if(video.readyState >= 1) {
+             video.currentTime = 0.1;
+        }
+    });
+    
     messageDiv.querySelectorAll("pre code").forEach(block => {
         hljs.highlightElement(block);
     });
