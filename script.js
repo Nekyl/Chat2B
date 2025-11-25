@@ -511,10 +511,10 @@ function renderInputPreviews() {
     currentMediaAttachments.forEach(media => {
         const wrapper = document.createElement('div');
         wrapper.className = 'media-preview-item-wrapper';
-        
+
         let mediaElement;
         const isVideo = media.type.startsWith('video/');
-        
+
         if (isVideo) {
             mediaElement = document.createElement('video');
             mediaElement.src = media.base64;
@@ -523,7 +523,7 @@ function renderInputPreviews() {
             mediaElement.loop = true;
             mediaElement.playsInline = true;
             mediaElement.className = 'media-preview-thumbnail';
-            
+
             mediaElement.onclick = (e) => {
                 e.stopPropagation();
                 const overlay = document.getElementById('image-preview-overlay');
@@ -536,10 +536,10 @@ function renderInputPreviews() {
                     fullVideo.controls = true;
                     fullVideo.muted = false;
                     if (fullImage) fullImage.style.display = 'none';
-                    
+
                     overlay.classList.add('active');
                     history.pushState({ imagePreview: true }, "Visualizador de Vídeo");
-                    
+
                     try {
                         fullVideo.play();
                     } catch (err) {
@@ -552,7 +552,7 @@ function renderInputPreviews() {
             mediaElement.src = media.base64;
             mediaElement.className = 'media-preview-thumbnail';
         }
-        
+
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-media-btn';
         removeBtn.innerHTML = '&times;';
@@ -571,17 +571,39 @@ function renderInputPreviews() {
         wrapper.appendChild(removeBtn);
 
         if (!isVideo) {
+            mediaElement.onclick = (e) => {
+                e.stopPropagation();
+                const overlay = document.getElementById('image-preview-overlay');
+                const fullImage = document.getElementById('image-preview-full-image');
+                const fullVideo = document.getElementById('image-preview-full-video');
+
+                if (fullImage && overlay) {
+                    fullImage.src = media.base64;
+                    fullImage.style.display = 'block';
+                    if (fullVideo) fullVideo.style.display = 'none';
+                    
+                    overlay.classList.add('active');
+                    history.pushState({ imagePreview: true }, "Visualizador de Imagem");
+                }
+            };
+            
             const editOverlay = document.createElement('div');
             editOverlay.className = 'media-edit-overlay';
             editOverlay.innerHTML = '<i class="fas fa-pencil-alt"></i>';
+            
+            const editIcon = editOverlay.querySelector('i');
+            if(editIcon) {
+                editIcon.onclick = (e) => {
+                    e.stopPropagation();
+                    openImageEditor(media.id);
+                };
+            }
             wrapper.appendChild(editOverlay);
-
-            wrapper.onclick = () => openImageEditor(media.id);
         }
 
         imagePreviewContainer.appendChild(wrapper);
     });
-    
+
     adjustTextareaHeight();
 }
 
