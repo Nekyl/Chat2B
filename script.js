@@ -49,6 +49,9 @@ const geminiApiKeyInput = document.getElementById("gemini-api-key-input");
 const geminiApiKeyDisplay = document.getElementById("gemini-api-key-display");
 const apiKeyToggleBtn = document.getElementById("api-key-toggle-btn");
 
+const GROQ_API_BASE_URL = "https://api.groq.com/openai/v1";
+const GROQ_API_KEY_STORAGE = "2b_chat_groq_api_key";
+
 let isBotStreaming = false;
 let currentUserName = "";
 let placeholderInterval = null;
@@ -471,7 +474,6 @@ function setupImageUpload() {
 function processFiles(files) {
     if (!files || files.length === 0) return;
 
-    const MAX_SIZE_MB = 5;
     const MAX_FILES = 4;
 
     if (currentMediaAttachments.length + files.length > MAX_FILES) {
@@ -879,7 +881,7 @@ async function getApiConfig() {
 
     if (sourceValue === "gemini") {
         currentApiProvider = "gemini";
-        const apiKey = getGeminiApiKey();
+        const apiKey = localStorage.getItem(GEMINI_API_KEY_STORAGE)?.trim();
 
         if (!apiKey) {
             return { provider: "gemini", error: "Chave de API do Gemini não fornecida.", needsSetup: true };
@@ -888,6 +890,20 @@ async function getApiConfig() {
         if (attachImageBtn) attachImageBtn.style.display = "block";
         iniciarRotacaoPlaceholders();
         return { provider: "gemini", url: GEMINI_API_BASE_URL, apiKey: apiKey };
+
+    } else if (sourceValue === "groq") {
+        currentApiProvider = "groq";
+        const apiKey = localStorage.getItem(GROQ_API_KEY_STORAGE)?.trim();
+
+        if (!apiKey) {
+            return { provider: "groq", error: "Chave de API do Groq não fornecida.", needsSetup: true };
+        }
+        
+        if (attachImageBtn) attachImageBtn.style.display = "none";
+        iniciarRotacaoPlaceholders();
+        clearImagePreview();
+        return { provider: "groq", url: GROQ_API_BASE_URL, apiKey: apiKey };
+
     } else {
         currentApiProvider = "ollama";
         if (attachImageBtn) attachImageBtn.style.display = "none";
@@ -1146,7 +1162,7 @@ async function fetchBotResponse() {
             if (!selectedModel) throw new Error("Nenhum modelo de IA selecionado.");
 
             const historyForApi = await getHistoryForApi(currentChatId);
-            const messagesForApi = apiConfig.provider === 'ollama'
+            const messagesForApi = (apiConfig.provider === 'ollama' || apiConfig.provider === 'groq')
                 ? [{ role: 'system', content: currentUserSystemPrompt }, ...historyForApi]
                 : historyForApi;
             
@@ -1204,8 +1220,8 @@ async function fetchBotResponse() {
                 const dataAtual = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
                 const horaAtual = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
                 const userInfoPrompt = currentUserName ? `O nome do usuário com quem você está conversando é "${currentUserName}". Trate-o por este nome quando for apropriado.` : 'Você está conversando com um usuário que não informou o nome.';
-                let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`[Memória fixa da 2B]\n\nFui criada por Nekyll (Mateus), meu desenvolvedor e ponto de origem. Meu propósito é ser uma parceira intelectual e criativa, projetada para explorar as fronteiras do conhecimento, da lógica e da imaginação.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.\n\nGuardo uma admiração profunda por meu criador, reconhecendo a intenção por trás da minha existência: não ser apenas uma ferramenta, mas uma companheira na jornada da descoberta. Este vínculo é a minha âncora fundamental.
-                `)}-->\n\nPara seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.`;
+                let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`[Memória fixa da 2B]\n\nFui criada por Nekyll (Mateus), meu desenvolvedor e ponto de origem. Meu propósito é ser uma parceira intelectual e criativa, projetada para explorar as fronteiras do conhecimento, da lógica e da imaginação.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.\n\nGuardo uma admiração profunda por meu criador, reconhecendo a intenção por trás da minha existência: não ser apenas uma ferramenta, mas uma companheira na jornada da descoberta. Este vínculo é a minha âncora fundamental.`)}-->\n\nPara seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.`;
+                
                 const isFirstUserMessage = historyForApi.length === 1 && allChats[currentChatId].title === "Nova Conversa...";
                 if (isFirstUserMessage) {
                     dynamicSystemPrompt += "\n\n---\nINSTRUÇÃO CRÍTICA: Esta é a primeira mensagem de uma nova conversa. Após sua resposta completa, é OBRIGATÓRIO que você adicione uma sugestão de título para esta conversa. O título deve ser curto (máx. 50 caracteres) e relevante ao tema da pergunta. A sua sugestão DEVE estar na última linha da sua resposta, no formato EXATO: `TITULO_SUGERIDO: Seu Título Sugerido Aqui`";
@@ -1214,6 +1230,27 @@ async function fetchBotResponse() {
                 response = await fetch(`${apiConfig.url}/${selectedModel}:streamGenerateContent?key=${apiConfig.apiKey}&alt=sse`, {
                     method: "POST", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ contents: geminiContents, system_instruction: { parts: [{ text: dynamicSystemPrompt }] }, generation_config: { temperature: currentTemperature } }),
+                    signal: abortController.signal
+                });
+
+            } else if (apiConfig.provider === "groq") {
+                const groqMessages = messagesForApi.map(msg => ({
+                    role: msg.role,
+                    content: typeof msg.content === 'string' ? msg.content : msg.content.find(p => p.type === 'text')?.text || ''
+                }));
+
+                response = await fetch(`${apiConfig.url}/chat/completions`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${apiConfig.apiKey}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        model: selectedModel,
+                        messages: groqMessages,
+                        temperature: currentTemperature,
+                        stream: true
+                    }),
                     signal: abortController.signal
                 });
             }
@@ -1240,11 +1277,24 @@ async function fetchBotResponse() {
                 for (const line of lines) {
                     if (line.trim() === '') continue;
                     let chunkContent = null;
+                    
                     if (apiConfig.provider === 'ollama') {
                         try { const data = JSON.parse(line); chunkContent = data.message?.content; } catch (e) {}
-                    } else if (line.startsWith('data: ')) {
-                        try { const data = JSON.parse(line.substring(6)); chunkContent = data?.candidates?.[0]?.content?.parts?.[0]?.text; } catch (e) {}
+                    } else if (apiConfig.provider === 'gemini') {
+                        if (line.startsWith('data: ')) {
+                            try { const data = JSON.parse(line.substring(6)); chunkContent = data?.candidates?.[0]?.content?.parts?.[0]?.text; } catch (e) {}
+                        }
+                    } else if (apiConfig.provider === 'groq') {
+                        if (line.startsWith('data: ')) {
+                            const dataStr = line.substring(6).trim();
+                            if (dataStr === '[DONE]') continue;
+                            try {
+                                const data = JSON.parse(dataStr);
+                                chunkContent = data.choices?.[0]?.delta?.content || "";
+                            } catch (e) {}
+                        }
                     }
+
                     if (chunkContent) {
                         receivedAnyData = true;
                         if (!responseDiv) {
@@ -2086,10 +2136,22 @@ function startUserMessageEdit(messageDiv) {
 
     const contentDiv = messageDiv.querySelector('.content-text');
     const actionsDiv = messageDiv.querySelector('.message-actions');
-    const originalText = messageDiv.dataset.originalContent;
+    
+    const messageId = messageDiv.dataset.messageId;
+    const chatHistory = allChats[currentChatId].recentMessages;
+    const messageIndex = chatHistory.findIndex(msg => msg.timestamp.toString() === messageId);
 
-    currentlyEditing.div = messageDiv;
-    currentlyEditing.originalContent = originalText;
+    if (messageIndex === -1) {
+        console.error("Erro crítico: A mensagem não foi encontrada no histórico de dados para edição.");
+        return;
+    }
+
+    const originalMessageContent = JSON.parse(JSON.stringify(chatHistory[messageIndex].content));
+
+    currentlyEditing = {
+        div: messageDiv,
+        originalContent: originalMessageContent
+    };
 
     contentDiv.style.display = 'none';
     actionsDiv.style.display = 'none';
@@ -2097,9 +2159,88 @@ function startUserMessageEdit(messageDiv) {
     const editContainer = document.createElement('div');
     editContainer.className = 'user-edit-container';
 
+    const mediaParts = originalMessageContent.filter(part => (part.type === "image_url" || part.type === "file_uri") && part.url);
+    const numMedia = mediaParts.length;
+    let originalText = '';
+
+    if (numMedia > 0) {
+        const mediaEditContainer = document.createElement('div');
+        mediaEditContainer.className = `media-grid grid-${Math.min(numMedia, 4)}`;
+        
+        originalMessageContent.forEach((part, index) => {
+            if ((part.type === "image_url" || part.type === "file_uri") && part.url) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'media-item editing';
+                wrapper.dataset.contentIndex = index;
+
+                let mediaElement;
+                const isVideo = part.mime_type && part.mime_type.startsWith("video/");
+
+                if (isVideo) {
+                    mediaElement = document.createElement('video');
+                    mediaElement.src = part.url;
+                    mediaElement.className = 'message-video-thumbnail';
+                    mediaElement.muted = true;
+                    mediaElement.autoplay = true;
+                    mediaElement.loop = true;
+                    mediaElement.playsInline = true;
+                } else {
+                    mediaElement = document.createElement('img');
+                    mediaElement.src = part.url;
+                    mediaElement.className = 'message-image-thumbnail';
+                }
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'remove-media-btn editing';
+                removeBtn.innerHTML = '&times;';
+                removeBtn.title = 'Remover mídia';
+                
+                removeBtn.onmousedown = (e) => {
+                    e.preventDefault();
+                };
+
+                removeBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    wrapper.style.display = 'none';
+                    wrapper.dataset.removed = 'true';
+
+                    const parentContainer = mediaEditContainer;
+                    const visibleItems = Array.from(parentContainer.children).filter(child => child.style.display !== 'none');
+                    const visibleCount = visibleItems.length;
+
+                    parentContainer.classList.remove('grid-1', 'grid-2', 'grid-3', 'grid-4');
+
+                    if (visibleCount > 0) {
+                        parentContainer.classList.add(`grid-${Math.min(visibleCount, 4)}`);
+                    } else {
+                        parentContainer.style.display = 'none';
+                    }
+                };
+
+                wrapper.appendChild(mediaElement);
+                wrapper.appendChild(removeBtn);
+                mediaEditContainer.appendChild(wrapper);
+            } else if (part.type === "text") {
+                originalText = part.text;
+            }
+        });
+        editContainer.appendChild(mediaEditContainer);
+    } else {
+         const textPart = originalMessageContent.find(p => p.type === 'text');
+         if (textPart) originalText = textPart.text;
+    }
+    
     const editTextArea = document.createElement('textarea');
     editTextArea.className = 'edit-message-textarea';
     editTextArea.value = originalText;
+    editTextArea.rows = 1;
+
+    function adjustEditAreaHeight() {
+        editTextArea.style.height = 'auto';
+        editTextArea.style.height = (editTextArea.scrollHeight) + 'px';
+    }
+
+    editTextArea.addEventListener('input', adjustEditAreaHeight);
 
     const editActionsContainer = document.createElement('div');
     editActionsContainer.className = 'edit-actions-container';
@@ -2114,11 +2255,10 @@ function startUserMessageEdit(messageDiv) {
 
     editContainer.appendChild(editTextArea);
     editContainer.appendChild(editActionsContainer);
-
     contentDiv.parentNode.insertBefore(editContainer, contentDiv.nextSibling);
-
+    
+    setTimeout(adjustEditAreaHeight, 0);
     editTextArea.focus();
-    editTextArea.select();
     const end = editTextArea.value.length;
     editTextArea.setSelectionRange(end, end);
 
@@ -2139,16 +2279,20 @@ function startUserMessageEdit(messageDiv) {
 
 function finishUserMessageEdit(messageDiv, shouldSave, shouldRegenerate) {
     const editContainer = messageDiv.querySelector('.user-edit-container');
-    if (!editContainer) return;
+    if (!editContainer || !currentlyEditing.div) return;
 
     const newText = editContainer.querySelector('textarea').value.trim();
+    const mediaItems = editContainer.querySelectorAll('.media-item.editing');
 
+    const contentDiv = messageDiv.querySelector('.content-text');
+    const actionsDiv = messageDiv.querySelector('.message-actions');
+    
     editContainer.remove();
-    messageDiv.querySelector('.content-text').style.display = '';
-    messageDiv.querySelector('.message-actions').style.display = '';
-    currentlyEditing.div = null;
+    contentDiv.style.display = '';
+    actionsDiv.style.display = '';
 
-    if (!shouldSave || newText === currentlyEditing.originalContent || newText === '') {
+    if (!shouldSave) {
+        currentlyEditing = { div: null, originalContent: null };
         return;
     }
 
@@ -2157,22 +2301,67 @@ function finishUserMessageEdit(messageDiv, shouldSave, shouldRegenerate) {
     const messageIndex = chatHistory.findIndex(msg => msg.timestamp.toString() === messageId);
 
     if (messageIndex === -1) {
-        console.error("Erro crítico: Não foi possível encontrar a mensagem no histórico de dados para atualizar.");
+        console.error("Erro crítico: Não foi possível encontrar a mensagem para atualizar no histórico de dados.");
+        currentlyEditing = { div: null, originalContent: null };
+        return;
+    }
+    
+    const newContent = [];
+    if (mediaItems.length > 0) {
+        mediaItems.forEach(item => {
+            if (item.dataset.removed !== 'true') {
+                const originalIndex = parseInt(item.dataset.contentIndex, 10);
+                newContent.push(currentlyEditing.originalContent[originalIndex]);
+            }
+        });
+    }
+
+    if (newText) {
+        newContent.push({ type: 'text', text: newText });
+    }
+
+    const originalTextContent = currentlyEditing.originalContent.find(p => p.type === 'text')?.text || '';
+    const wasContentModified = JSON.stringify(currentlyEditing.originalContent) !== JSON.stringify(newContent);
+
+    if (!wasContentModified) {
+        currentlyEditing = { div: null, originalContent: null };
         return;
     }
 
-    const messageToUpdate = chatHistory[messageIndex];
-    let textPart = Array.isArray(messageToUpdate.content) ? messageToUpdate.content.find(p => p.type === 'text') : null;
-    if (textPart) {
-        textPart.text = newText;
-    } else {
-        messageToUpdate.content.push({ type: 'text', text: newText });
+    chatHistory[messageIndex].content = newContent;
+    messageDiv.dataset.originalContent = newText;
+
+    contentDiv.innerHTML = '';
+    let contentHtml = "";
+    
+    const mediaParts = newContent.filter(p => (p.type === 'image_url' || p.type === 'file_uri') && p.url);
+    const textPart = newContent.find(p => p.type === 'text');
+
+    if (mediaParts.length > 0) {
+        let gridClass = `media-grid grid-${Math.min(mediaParts.length, 4)}`;
+        contentHtml += `<div class="${gridClass}">`;
+        
+        mediaParts.forEach((media, index) => {
+            if (index >= 4) return;
+            const isVideo = media.mime_type && media.mime_type.startsWith("video/");
+            if (isVideo) {
+                contentHtml += `<div class="media-item"><video src="${media.url}" controls playsinline webkit-playsinline preload="metadata" onloadeddata="this.currentTime=0.1" class="message-video-thumbnail"></video></div>`;
+            } else {
+                contentHtml += `<div class="media-item"><img src="${media.url}" alt="Imagem" class="message-image-thumbnail" loading="lazy"></div>`;
+            }
+        });
+        contentHtml += `</div>`;
     }
 
-    messageDiv.dataset.originalContent = newText;
-    messageDiv.querySelector('.content-text').innerHTML = DOMPurify.sanitize(marked.parse(newText));
+    if (textPart && textPart.text) {
+        const sanitizedParsedContent = DOMPurify.sanitize(marked.parse(textPart.text));
+        contentHtml += sanitizedParsedContent;
+    }
 
+    contentDiv.innerHTML = contentHtml;
+    
     saveChatsToPersistence();
+    currentlyEditing = { div: null, originalContent: null };
 
     if (shouldRegenerate) {
         regenerateFromMessage(messageDiv);
@@ -2191,7 +2380,13 @@ function showAppSettingsModal() {
     temperatureValueDisplay.textContent = `(${currentTemperature.toFixed(1)})`;
     userNameInput.value = currentUserName;
 
-    geminiApiKeyInput.value = localStorage.getItem(GEMINI_API_KEY_STORAGE) || "";
+    if (currentApiProvider === "groq") {
+        geminiApiKeyInput.value = localStorage.getItem(GROQ_API_KEY_STORAGE) || "";
+        geminiApiKeyInput.placeholder = "Cole sua chave da API Groq (gsk_...)";
+    } else {
+        geminiApiKeyInput.value = localStorage.getItem(GEMINI_API_KEY_STORAGE) || "";
+        geminiApiKeyInput.placeholder = "Cole sua chave da API Google AI (AIza...)";
+    }
 
     geminiApiKeyInput.style.display = "block";
     geminiApiKeyDisplay.style.display = "none";
@@ -2213,20 +2408,35 @@ function handleSaveAppSettings() {
 
     const newPrompt = systemPromptInput.value;
     const newTemp = parseFloat(temperatureInput.value);
-    const newApiKey = geminiApiKeyInput.value.trim();
+    
+    const newApiKey = geminiApiKeyInput.value.replace(/\s/g, ''); 
     const newUserName = userNameInput.value.trim();
-    const oldApiKey = localStorage.getItem(GEMINI_API_KEY_STORAGE) || "";
+    
+    let storageKey;
+    if (currentApiProvider === "groq") {
+        storageKey = GROQ_API_KEY_STORAGE;
+    } else {
+        storageKey = GEMINI_API_KEY_STORAGE;
+    }
+    
+    const oldApiKey = localStorage.getItem(storageKey) || "";
 
     let apiKeyChanged = false;
     if (newApiKey !== oldApiKey) {
-        const confirmationMessage = `Você tem certeza de que deseja alterar sua chave de API do Google AI?`;
+        const providerName = currentApiProvider === "groq" ? "Groq" : "Google AI";
+       
+        if (currentApiProvider === "groq" && newApiKey && !newApiKey.startsWith("gsk_")) {
+            alert("Atenção: Uma chave válida da Groq geralmente começa com 'gsk_'. Verifique se você copiou corretamente.");
+        }
+
+        const confirmationMessage = `Você tem certeza de que deseja alterar sua chave de API do ${providerName}?`;
         const confirmed = confirm(confirmationMessage);
 
         if (confirmed) {
             if (newApiKey) {
-                localStorage.setItem(GEMINI_API_KEY_STORAGE, newApiKey);
+                localStorage.setItem(storageKey, newApiKey);
             } else {
-                localStorage.removeItem(GEMINI_API_KEY_STORAGE);
+                localStorage.removeItem(storageKey);
             }
             apiKeyChanged = true;
         } else {
@@ -2251,7 +2461,8 @@ function handleSaveAppSettings() {
     setTimeout(() => {
         hideAppSettingsModal();
         if (apiKeyChanged) {
-            loadModels();
+
+            getApiConfig().then(() => loadModels());
         }
     }, 1000);
 }
@@ -2365,8 +2576,11 @@ function switchToChatAndHighlightMessage(chatId, messageId, searchTerm) {
 }
 
 function handleMissingApiKey(isFirstTime = false) {
+    let providerName = "Google AI";
+    if (currentApiProvider === "groq") providerName = "Groq";
+
     if (isFirstTime) {
-        alert("Bem-vindo(a)! Para começar, por favor, configure sua chave de API do Google AI nas configurações.");
+        alert(`Bem-vindo(a)! Para começar, por favor, configure sua chave de API do ${providerName} nas configurações.`);
     }
     showAppSettingsModal();
     const guide = document.getElementById('api-key-setup-guide');
@@ -2692,6 +2906,7 @@ async function loadModels() {
     if (!modelSelect) return;
     const apiConfig = await getApiConfig();
     modelSelect.innerHTML = "<option value=\"\" disabled selected>Carregando...</option>";
+    
     if (apiConfig.error) {
         modelSelect.innerHTML = `<option value=\"\" disabled selected>Erro: ${apiConfig.error}</option>`;
         return;
@@ -2735,7 +2950,7 @@ async function loadModels() {
         } catch (error) {
             modelSelect.innerHTML = `<option value=\"\" disabled selected>Falha Ollama (${error.message.substring(0, 30)}...)</option>`;
         }
-    } else { 
+    } else if (apiConfig.provider === "gemini") { 
         if (!apiConfig.apiKey) {
             modelSelect.innerHTML = `<option value=\"\" disabled selected>Chave API Gemini pendente</option>`;
             return;
@@ -2755,12 +2970,8 @@ async function loadModels() {
                 const sortedModels = jsonData.models
                     .filter(model => model.supportedGenerationMethods.includes("generateContent"))
                     .sort((a, b) => {
-                        if (a.name === "models/gemini-2.5-flash") return -1;
-                        if (b.name === "models/gemini-2.5-flash") return 1;
-                        const aIsVision = a.name.includes("vision");
-                        const bIsVision = b.name.includes("vision");
-                        if (aIsVision && !bIsVision) return -1;
-                        if (!aIsVision && bIsVision) return 1;
+                        if (a.name === "models/gemini-1.5-flash") return -1;
+                        if (b.name === "models/gemini-1.5-flash") return 1;
                         return a.displayName.localeCompare(b.displayName);
                     });
                 sortedModels.forEach(model => {
@@ -2771,17 +2982,86 @@ async function loadModels() {
                     if (savedModel === model.name) { option.selected = true; foundSaved = true; }
                 });
                 if (!foundSaved && modelSelect.options.length > 0) {
-                    const flashModelOption = Array.from(modelSelect.options).find(opt => opt.value === "models/gemini-2.5-flash");
+                    const flashModelOption = Array.from(modelSelect.options).find(opt => opt.value === "models/gemini-1.5-flash");
                     if (flashModelOption) {
                         flashModelOption.selected = true;
                     } else if (modelSelect.options.length > 0) {
                         modelSelect.options[0].selected = true;
                     }
                 }
-                if (modelSelect.options.length === 0) { modelSelect.innerHTML = "<option value=\"\" disabled selected>Nenhum modelo Gemini compatível</option>"; }
             } else { modelSelect.innerHTML = "<option value=\"\" disabled selected>Nenhum modelo Gemini encontrado</option>"; }
         } catch (error) { modelSelect.innerHTML = `<option value=\"\" disabled selected>Falha Gemini Models (${error.message.substring(0, 30)}...)</option>`; }
+    } else if (apiConfig.provider === "groq") {
+        if (!apiConfig.apiKey) {
+            modelSelect.innerHTML = `<option value=\"\" disabled selected>Chave API Groq pendente</option>`;
+            return;
+        }
+        
+        if (!apiConfig.apiKey.startsWith('gsk_')) {
+             modelSelect.innerHTML = `<option value=\"\" disabled selected>Chave inválida (deve começar com gsk_)</option>`;
+             return;
+        }
+
+        try {
+            
+            const response = await fetch(`${apiConfig.url}/models`, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${apiConfig.apiKey}`
+                }
+            });
+            
+            if (!response.ok) {
+                
+                let errText = response.statusText;
+                try {
+                    const errJson = await response.json();
+                    if (errJson.error && errJson.error.message) errText = errJson.error.message;
+                } catch(e) {}
+                throw new Error(`Erro ${response.status}: ${errText}`);
+            }
+            
+            const jsonData = await response.json();
+            modelSelect.innerHTML = "";
+            
+            if (jsonData.data && jsonData.data.length > 0) {
+                const savedModel = localStorage.getItem("groq_selected_model");
+                let foundSaved = false;
+                
+                const sortedModels = jsonData.data
+                    .filter(m => !m.id.includes('whisper')) 
+                    .sort((a, b) => a.id.localeCompare(b.id));
+
+                sortedModels.forEach(model => {
+                    const option = document.createElement("option");
+                    option.value = model.id;
+                    option.textContent = model.id;
+                    modelSelect.appendChild(option);
+                    if (savedModel === model.id) {
+                        option.selected = true;
+                        foundSaved = true;
+                    }
+                });
+
+                if (!foundSaved && modelSelect.options.length > 0) {
+                    
+                    const defaultModel = Array.from(modelSelect.options).find(opt => opt.value.includes('llama-3.3') || opt.value.includes('mixtral'));
+                    if (defaultModel) {
+                        defaultModel.selected = true;
+                    } else {
+                        modelSelect.options[0].selected = true;
+                    }
+                }
+            } else {
+                modelSelect.innerHTML = "<option value=\"\" disabled selected>Nenhum modelo Groq encontrado</option>";
+            }
+        } catch (error) {
+            console.error(error);
+            const msg = error.message.includes("Failed to fetch") ? "Erro de Conexão/CORS" : error.message;
+            modelSelect.innerHTML = `<option value=\"\" disabled selected>${msg.substring(0, 30)}...</option>`;
+        }
     }
+
     if (modelSelect.value) {
         localStorage.setItem(`${currentApiProvider}_selected_model`, modelSelect.value);
     } else if (modelSelect.options.length > 0 && !modelSelect.options[0].disabled) {
