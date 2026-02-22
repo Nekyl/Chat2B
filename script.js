@@ -2930,10 +2930,9 @@ async function loadModels() {
                 data.models.sort((a, b) => a.name.localeCompare(b.name)).forEach(model => {
                     const option = document.createElement("option");
                     option.value = model.name;
-                    const modelName = model.name;
                     const quant = model.details?.quantization_level || "N/A";
                     const size = formatBytes(model.size);
-                    option.textContent = `${modelName} (${quant}) - ${size}`;
+                    option.textContent = `${model.name} (${quant}) - ${size}`;
                     modelSelect.appendChild(option);
                     if (savedModel === model.name) {
                         option.selected = true;
@@ -2966,25 +2965,27 @@ async function loadModels() {
             modelSelect.innerHTML = "";
             if (jsonData.models && jsonData.models.length > 0) {
                 const savedModel = localStorage.getItem("gemini_selected_model");
-                let foundSaved = false;
+                let foundToSelect = false;
+
                 const sortedModels = jsonData.models
                     .filter(model => model.supportedGenerationMethods.includes("generateContent"))
-                    .sort((a, b) => {
-                        if (a.name === "models/gemini-1.5-flash") return -1;
-                        if (b.name === "models/gemini-1.5-flash") return 1;
-                        return a.displayName.localeCompare(b.displayName);
-                    });
+                    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+
                 sortedModels.forEach(model => {
                     const option = document.createElement("option");
                     option.value = model.name;
                     option.textContent = model.displayName;
                     modelSelect.appendChild(option);
-                    if (savedModel === model.name) { option.selected = true; foundSaved = true; }
+                    if (savedModel === model.name) {
+                        option.selected = true;
+                        foundToSelect = true;
+                    }
                 });
-                if (!foundSaved && modelSelect.options.length > 0) {
-                    const flashModelOption = Array.from(modelSelect.options).find(opt => opt.value === "models/gemini-1.5-flash");
-                    if (flashModelOption) {
-                        flashModelOption.selected = true;
+
+                if (!foundToSelect) {
+                    const flashOpt = Array.from(modelSelect.options).find(opt => opt.value.includes("gemini-2.5-flash") || opt.value.includes("gegemini-3-flash-preview"));
+                    if (flashOpt) {
+                        flashOpt.selected = true;
                     } else if (modelSelect.options.length > 0) {
                         modelSelect.options[0].selected = true;
                     }
@@ -2996,23 +2997,12 @@ async function loadModels() {
             modelSelect.innerHTML = `<option value=\"\" disabled selected>Chave API Groq pendente</option>`;
             return;
         }
-        
-        if (!apiConfig.apiKey.startsWith('gsk_')) {
-             modelSelect.innerHTML = `<option value=\"\" disabled selected>Chave inválida (deve começar com gsk_)</option>`;
-             return;
-        }
-
         try {
-            
             const response = await fetch(`${apiConfig.url}/models`, {
                 method: "GET",
-                headers: {
-                    "Authorization": `Bearer ${apiConfig.apiKey}`
-                }
+                headers: { "Authorization": `Bearer ${apiConfig.apiKey}` }
             });
-            
             if (!response.ok) {
-                
                 let errText = response.statusText;
                 try {
                     const errJson = await response.json();
@@ -3020,18 +3010,12 @@ async function loadModels() {
                 } catch(e) {}
                 throw new Error(`Erro ${response.status}: ${errText}`);
             }
-            
             const jsonData = await response.json();
             modelSelect.innerHTML = "";
-            
             if (jsonData.data && jsonData.data.length > 0) {
                 const savedModel = localStorage.getItem("groq_selected_model");
                 let foundSaved = false;
-                
-                const sortedModels = jsonData.data
-                    .filter(m => !m.id.includes('whisper')) 
-                    .sort((a, b) => a.id.localeCompare(b.id));
-
+                const sortedModels = jsonData.data.filter(m => !m.id.includes('whisper')).sort((a, b) => a.id.localeCompare(b.id));
                 sortedModels.forEach(model => {
                     const option = document.createElement("option");
                     option.value = model.id;
@@ -3042,30 +3026,21 @@ async function loadModels() {
                         foundSaved = true;
                     }
                 });
-
                 if (!foundSaved && modelSelect.options.length > 0) {
-                    
                     const defaultModel = Array.from(modelSelect.options).find(opt => opt.value.includes('llama-3.3') || opt.value.includes('mixtral'));
-                    if (defaultModel) {
-                        defaultModel.selected = true;
-                    } else {
-                        modelSelect.options[0].selected = true;
-                    }
+                    if (defaultModel) defaultModel.selected = true;
+                    else modelSelect.options[0].selected = true;
                 }
             } else {
                 modelSelect.innerHTML = "<option value=\"\" disabled selected>Nenhum modelo Groq encontrado</option>";
             }
         } catch (error) {
-            console.error(error);
-            const msg = error.message.includes("Failed to fetch") ? "Erro de Conexão/CORS" : error.message;
-            modelSelect.innerHTML = `<option value=\"\" disabled selected>${msg.substring(0, 30)}...</option>`;
+            modelSelect.innerHTML = `<option value=\"\" disabled selected>Erro Groq</option>`;
         }
     }
 
     if (modelSelect.value) {
         localStorage.setItem(`${currentApiProvider}_selected_model`, modelSelect.value);
-    } else if (modelSelect.options.length > 0 && !modelSelect.options[0].disabled) {
-        localStorage.setItem(`${currentApiProvider}_selected_model`, modelSelect.options[0].value);
     }
 }
 
