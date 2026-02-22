@@ -1,7 +1,6 @@
 import { initializeHistory, addMessageToHistory, getHistoryForApi, clearChatHistory } from "./history.js";
 import { loadChatsFromStorage, saveChatsToStorage } from "./storage.js";
 import { PROMPT_BASE } from "./prompt.js";
-
 let currentEditorCropper = null;
 let currentEditingMediaId = null;
 const messagesContainer = document.getElementById("messages");
@@ -16,26 +15,22 @@ const sidebar = document.querySelector(".sidebar");
 const overlay = document.getElementById("sidebar-overlay");
 const typingAnimation = document.getElementById("typing-animation");
 const apiSourceInput = document.getElementById("api-source-input");
-
 const attachImageBtn = document.getElementById("attach-image-btn");
 const imageFileInput = document.getElementById("image-file-input");
 const imagePreviewContainer = document.getElementById("image-preview-container");
 const removeImageBtn = document.getElementById("remove-image-btn");
-
 const deleteConfirmOverlay = document.getElementById("delete-confirm-overlay");
 const confirmDeleteChatTitle = document.getElementById("confirm-delete-chat-title");
 const confirmDeleteBtn = document.getElementById("confirm-delete-btn");
 const cancelDeleteBtn = document.getElementById("cancel-delete-btn");
 let chatIdToDelete = null;
 let abortController = null;
-
 const searchBtn = document.getElementById("search-btn");
 const searchOverlay = document.getElementById("search-overlay");
 const closeSearchBtn = document.getElementById("close-search");
 const clearSearchBtn = document.getElementById("clear-search");
 const searchInput = document.getElementById("search-input");
 const searchResults = document.getElementById("search-results");
-
 const userNameInput = document.getElementById("user-name-input");
 const appSettingsBtn = document.getElementById("app-settings-btn");
 const appSettingsModalOverlay = document.getElementById("app-settings-modal-overlay");
@@ -45,13 +40,18 @@ const temperatureValueDisplay = document.getElementById("temperature-value-displ
 const saveAppSettingsBtn = document.getElementById("save-app-settings-btn");
 const cancelAppSettingsBtn = document.getElementById("cancel-app-settings-btn");
 const settingsFeedback = document.getElementById("settings-feedback");
-const geminiApiKeyInput = document.getElementById("gemini-api-key-input");
-const geminiApiKeyDisplay = document.getElementById("gemini-api-key-display");
+    const globalApiKeyInput = document.getElementById("global-api-key-input");
+const globalApiKeyDisplay = document.getElementById("global-api-key-display");
+const dynamicApiKeyLabel = document.getElementById("dynamic-api-key-label");
+const dynamicApiKeyContainer = document.getElementById("dynamic-api-key-container");
 const apiKeyToggleBtn = document.getElementById("api-key-toggle-btn");
-
 const GROQ_API_BASE_URL = "https://api.groq.com/openai/v1";
+const OPENAI_API_BASE_URL = "https://api.openai.com/v1";
+const XAI_API_BASE_URL = "https://api.x.ai/v1";
 const GROQ_API_KEY_STORAGE = "2b_chat_groq_api_key";
-
+const OPENAI_API_KEY_STORAGE = "2b_chat_openai_api_key";
+const XAI_API_KEY_STORAGE = "2b_chat_xai_api_key";
+const GEMINI_API_KEY_STORAGE = "2b_chat_gemini_api_key";
 let isBotStreaming = false;
 let currentUserName = "";
 let placeholderInterval = null;
@@ -69,23 +69,18 @@ let currentAudio = null;
 let currentPlayingTtsBtn = null;
 let currentlyEditing = { div: null, originalContent: '' };
 let deferredPrompt;
-
 const DEFAULT_OLLAMA_URL = "http://localhost:11434";
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
-const GEMINI_API_KEY_STORAGE = "2b_chat_gemini_api_key";
 const SYSTEM_PROMPT_STORAGE_KEY = "2b_chat_user_system_prompt";
 const TEMPERATURE_STORAGE_KEY = "2b_chat_user_temperature";
 const DEFAULT_TEMPERATURE = 0.7;
 let currentTemperature = DEFAULT_TEMPERATURE;
 let currentUserSystemPrompt = "";
 const USER_NAME_STORAGE_KEY = "2b_chat_user_name";
-
 const purifyConfig = {
     ADD_TAGS: ['video', 'source', 'img'],
     ADD_ATTR: ['controls', 'autoplay', 'loop', 'muted', 'playsinline', 'webkit-playsinline', 'preload', 'src', 'alt', 'class', 'style'],
 };
-
-
 async function initializeApp() {
     loadAppSettingsFromLocalStorage();
     await loadChatsFromStorageData();
@@ -94,7 +89,6 @@ async function initializeApp() {
     setupImageUpload();
     setupImagePreview();
     createScrollToBottomButton();
-    
     await loadModels();
     handleResizeLayout();
     adjustTextareaHeight();
@@ -104,14 +98,12 @@ async function initializeApp() {
     }
     checkScrollPosition();
     checkNetworkStatus();
-
     const sourcePref = localStorage.getItem("api_source_preference") || "Gemini";
     if (sourcePref.toLowerCase() === 'gemini' && !getGeminiApiKey()) {
         setTimeout(() => handleMissingApiKey(false), 500);
     }
     onWebAppReady();
 }
-
 function setupEventListeners() {
     const installPwaBtn = document.getElementById("install-pwa-btn");
     if (installPwaBtn) {
@@ -125,7 +117,6 @@ function setupEventListeners() {
             }
         });
     }
-
     if (mobileMenuBtn) {
         mobileMenuBtn.addEventListener("click", () => {
             if (sidebar?.classList.contains('active')) {
@@ -137,7 +128,6 @@ function setupEventListeners() {
             }
         });
     }
-
     if (overlay) {
         overlay.addEventListener("click", () => {
             if (sidebar?.classList.contains('active')) {
@@ -145,7 +135,6 @@ function setupEventListeners() {
             }
         });
     }
-    
     window.addEventListener('popstate', () => {
         if (sidebar?.classList.contains('active')) {
             sidebar.classList.remove('active');
@@ -155,16 +144,13 @@ function setupEventListeners() {
             appSettingsModalOverlay.classList.remove('active');
         }
     });
-
     const newChatBtn = document.querySelector(".new-chat-btn");
     if (newChatBtn) {
         newChatBtn.addEventListener("click", createNewChat);
     }
-
     if (messageInput) {
         messageInput.addEventListener("paste", handlePaste);
     }
-
     if (messageInput && sendButton && chatForm) {
         chatForm.addEventListener("submit", (e) => {
             e.preventDefault();
@@ -172,7 +158,6 @@ function setupEventListeners() {
                 sendMessage();
             }
         });
-
         messageInput.addEventListener("keydown", (e) => {
             const isMobile = window.innerWidth <= 768;
             if (e.key === 'Enter' && !e.shiftKey && !isMobile) {
@@ -182,12 +167,10 @@ function setupEventListeners() {
                 }
             }
         });
-
         messageInput.addEventListener("input", () => {
             adjustTextareaHeight();
             updateSendButtonState();
         });
-
         const shouldScrollToBottom = () => {
             if (!scrollContainer) return false;
             const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
@@ -195,7 +178,6 @@ function setupEventListeners() {
             if (isNearBottom) return true;
             return false;
         };
-
         const handleMobileKeyboard = () => {
             const isMobile = window.innerWidth <= 768;
             if (isMobile && shouldScrollToBottom()) {
@@ -204,11 +186,9 @@ function setupEventListeners() {
                 }, 300);
             }
         };
-
         messageInput.addEventListener('focus', handleMobileKeyboard);
         messageInput.addEventListener('click', handleMobileKeyboard);
     }
-
     document.addEventListener('click', function(e) {
         const copyCodeBtn = e.target.closest('.code-copy-btn');
         if (copyCodeBtn) {
@@ -218,14 +198,12 @@ function setupEventListeners() {
             if (codeElement) copyTextToClipboard(codeElement.textContent, copyCodeBtn);
             return;
         }
-        
         const inlineCode = e.target.closest('.message-content code:not(pre *)');
         if (inlineCode) {
             e.stopPropagation();
             copyTextToClipboard(inlineCode.textContent, inlineCode);
             return;
         }
-
         const copyMsgBtn = e.target.closest('.message-action-btn.copy-message');
         if (copyMsgBtn) {
             e.stopPropagation();
@@ -235,7 +213,6 @@ function setupEventListeners() {
             }
             return;
         }
-
         const ttsBtn = e.target.closest('.tts-btn');
         if (ttsBtn) {
             e.stopPropagation();
@@ -246,7 +223,6 @@ function setupEventListeners() {
             }
             return;
         }
-
         const regenerateBtn = e.target.closest('.regenerate-btn');
         if (regenerateBtn) {
             e.stopPropagation();
@@ -256,7 +232,6 @@ function setupEventListeners() {
             }
             return;
         }
-
         const editBtn = e.target.closest('.edit-message-btn');
         if (editBtn) {
             e.stopPropagation();
@@ -264,7 +239,6 @@ function setupEventListeners() {
             startUserMessageEdit(messageDiv);
             return;
         }
-
         const activeEditContainer = document.querySelector('.user-edit-container');
         if (activeEditContainer && !e.target.closest('.user-edit-container')) {
             if (currentlyEditing.div) {
@@ -272,7 +246,6 @@ function setupEventListeners() {
             }
         }
     });
-
     if (confirmDeleteBtn) {
         confirmDeleteBtn.addEventListener('click', () => {
             if (chatIdToDelete) deleteChat(chatIdToDelete);
@@ -287,7 +260,6 @@ function setupEventListeners() {
             if (e.target === deleteConfirmOverlay) hideDeleteConfirmation();
         });
     }
-
     if (appSettingsBtn) {
         appSettingsBtn.addEventListener('click', showAppSettingsModal);
     }
@@ -302,18 +274,18 @@ function setupEventListeners() {
             if (e.target === appSettingsModalOverlay) hideAppSettingsModal();
         });
     }
-    if (apiKeyToggleBtn && geminiApiKeyInput && geminiApiKeyDisplay) {
+    if (apiKeyToggleBtn && globalApiKeyInput && globalApiKeyDisplay) {
         apiKeyToggleBtn.addEventListener('click', () => {
-            if (geminiApiKeyInput.style.display !== 'none') {
-                const key = geminiApiKeyInput.value;
+            if (globalApiKeyInput.style.display !== 'none') {
+                const key = globalApiKeyInput.value;
                 const maskedKey = (key && key.length > 6) ? `${key.substring(0, 3)}(ﾉﾟДﾟ)ﾉ${key.substring(key.length - 3)}` : key;
-                geminiApiKeyDisplay.textContent = maskedKey;
-                geminiApiKeyInput.style.display = 'none';
-                geminiApiKeyDisplay.style.display = 'block';
+                globalApiKeyDisplay.textContent = maskedKey || "Nenhuma chave inserida";
+                globalApiKeyInput.style.display = 'none';
+                globalApiKeyDisplay.style.display = 'block';
                 apiKeyToggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
             } else {
-                geminiApiKeyDisplay.style.display = 'none';
-                geminiApiKeyInput.style.display = 'block';
+                globalApiKeyDisplay.style.display = 'none';
+                globalApiKeyInput.style.display = 'block';
                 apiKeyToggleBtn.innerHTML = '<i class="fas fa-eye"></i>';
             }
         });
@@ -323,41 +295,34 @@ function setupEventListeners() {
             temperatureValueDisplay.textContent = `(${parseFloat(temperatureInput.value).toFixed(1)})`;
         });
     }
-
     const haveKeyBtn = document.getElementById('guide-have-key-btn');
     const createKeyBtn = document.getElementById('guide-create-key-btn');
     const apiKeyGuide = document.getElementById('api-key-setup-guide');
-
     if (haveKeyBtn && apiKeyGuide) {
         haveKeyBtn.addEventListener('click', () => {
             apiKeyGuide.style.display = 'none';
-            if (geminiApiKeyInput) geminiApiKeyInput.focus();
+            if (globalApiKeyInput) globalApiKeyInput.focus();
         });
     }
-
     if (createKeyBtn && apiKeyGuide) {
         createKeyBtn.addEventListener('click', () => {
             apiKeyGuide.style.display = 'none';
         });
     }
-
     if (scrollContainer) {
         const handleManualScroll = () => {
             if (isBotStreaming) {
                 autoScrollEnabled = false;
             }
         };
-
         scrollContainer.addEventListener('wheel', handleManualScroll, { passive: true });
         scrollContainer.addEventListener('touchstart', handleManualScroll, { passive: true });
-
         let scrollDebounceTimeout;
         scrollContainer.addEventListener("scroll", () => {
             clearTimeout(scrollDebounceTimeout);
             scrollDebounceTimeout = setTimeout(checkScrollPosition, 50);
         });
     }
-
     window.addEventListener("resize", handleResizeLayout);
     window.addEventListener("beforeunload", () => {
         saveChatsToPersistence();
@@ -365,7 +330,6 @@ function setupEventListeners() {
     window.addEventListener('online', checkNetworkStatus);
     window.addEventListener('offline', checkNetworkStatus);
     setInterval(checkNetworkStatus, 10000);
-
     if (apiSourceInput) {
         let debounceTimer;
         apiSourceInput.addEventListener("input", () => {
@@ -379,7 +343,6 @@ function setupEventListeners() {
             }, 500);
         });
     }
-
     if (modelSelect) {
         modelSelect.addEventListener("change", () => {
             if (modelSelect.value) {
@@ -394,19 +357,16 @@ function setupEventListeners() {
             }
         });
     }
-
     document.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
             if (searchOverlay?.classList.contains("active")) searchOverlay.classList.remove("active");
             else if (deleteConfirmOverlay?.classList.contains("active")) hideDeleteConfirmation();
             else if (appSettingsModalOverlay?.classList.contains("active")) hideAppSettingsModal();
         }
-
         const isTypingElement = ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(document.activeElement?.tagName);
         const isContentEditable = document.activeElement?.isContentEditable;
         const isModifierKeyPressed = e.metaKey || e.ctrlKey || e.altKey;
         const isTextInputFocused = messageInput && !searchOverlay?.classList.contains("active") && !deleteConfirmOverlay?.classList.contains("active") && !appSettingsModalOverlay?.classList.contains("active");
-
         if (!isTypingElement && !isContentEditable && !isModifierKeyPressed) {
             if (e.key.length === 1 || e.key === "Backspace" || e.key === "Delete" || e.key === "Enter") {
                 if (isTextInputFocused) {
@@ -416,8 +376,6 @@ function setupEventListeners() {
         }
     });
 }
-
-
 function setupSearch() {
     if (!searchBtn || !searchOverlay || !closeSearchBtn || !clearSearchBtn || !searchInput || !searchResults) return;
     searchBtn.addEventListener("click", () => {
@@ -431,63 +389,46 @@ function setupSearch() {
     searchInput.addEventListener("input", (e) => performSearch(e.target.value));
     searchOverlay.addEventListener("click", (e) => { if (e.target === searchOverlay) searchOverlay.classList.remove("active"); });
 }
-
 function setupImageUpload() {
     if (!attachImageBtn || !imageFileInput || !imagePreviewContainer) return;
-    
     imageFileInput.setAttribute('multiple', 'multiple'); 
-
     attachImageBtn.addEventListener("click", () => { imageFileInput.click(); });
-    
     imageFileInput.addEventListener("change", (event) => {
         processFiles(event.target.files);
         imageFileInput.value = null;
         setTimeout(() => messageInput.focus(), 10);
     });
-
     const dropZone = document.body;
-
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
         dropZone.addEventListener(eventName, preventDefaults, false);
     });
-
     function preventDefaults(e) {
         e.preventDefault();
         e.stopPropagation();
     }
-
     dropZone.addEventListener('drop', handleDrop, false);
-
     function handleDrop(e) {
         const dt = e.dataTransfer;
         const files = dt.files;
-
         if (files && files.length > 0) {
             const filesArray = Array.from(files);
             const filesToProcess = filesArray.length > 4 ? filesArray.slice(0, 4) : filesArray;
-            
             processFiles(filesToProcess);
         }
     }
 }
-
 function processFiles(files) {
     if (!files || files.length === 0) return;
-
     const MAX_FILES = 4;
-
     if (currentMediaAttachments.length + files.length > MAX_FILES) {
         alert(`Você pode enviar no máximo ${MAX_FILES} arquivos por vez.`);
         return;
     }
-
     Array.from(files).forEach(file => {
         if (currentMediaAttachments.length >= MAX_FILES) return;
-
         if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
             return;
         }
-
         const reader = new FileReader();
         reader.onload = (e) => {
             const base64 = e.target.result;
@@ -503,26 +444,54 @@ function processFiles(files) {
         reader.readAsDataURL(file);
     });
 }
-
+let thinkingVibrationInterval = null;
+function startThinkingVibration() {
+    if (!navigator.vibrate) return;
+    stopAllVibrations();
+    navigator.vibrate(15);
+    thinkingVibrationInterval = setInterval(() => {
+        navigator.vibrate(15);
+    }, 1500);
+}
+function tokenVibration(isFirst) {
+    if (!navigator.vibrate) return;
+    if (isFirst) {
+        stopAllVibrations();
+        navigator.vibrate(100);
+    } else {
+        navigator.vibrate(10);
+    }
+}
+function successVibration() {
+    if (!navigator.vibrate) return;
+    stopAllVibrations();
+    navigator.vibrate([50, 30, 50]);
+}
+function errorVibration() {
+    if (!navigator.vibrate) return;
+    stopAllVibrations();
+    navigator.vibrate([200, 100, 200, 100, 200]);
+}
+function stopAllVibrations() {
+    if (thinkingVibrationInterval) {
+        clearInterval(thinkingVibrationInterval);
+        thinkingVibrationInterval = null;
+    }
+    if (navigator.vibrate) navigator.vibrate(0);
+}
 function renderInputPreviews() {
     if (!imagePreviewContainer) return;
-
     imagePreviewContainer.innerHTML = '';
-
     if (currentMediaAttachments.length === 0) {
         imagePreviewContainer.style.display = "none";
         return;
     }
-
     imagePreviewContainer.style.display = "flex";
-
     currentMediaAttachments.forEach(media => {
         const wrapper = document.createElement('div');
         wrapper.className = 'media-preview-item-wrapper';
-
         let mediaElement;
         const isVideo = media.type.startsWith('video/');
-
         if (isVideo) {
             mediaElement = document.createElement('video');
             mediaElement.src = media.base64;
@@ -531,23 +500,19 @@ function renderInputPreviews() {
             mediaElement.loop = true;
             mediaElement.playsInline = true;
             mediaElement.className = 'media-preview-thumbnail';
-
             mediaElement.onclick = (e) => {
                 e.stopPropagation();
                 const overlay = document.getElementById('image-preview-overlay');
                 const fullVideo = document.getElementById('image-preview-full-video');
                 const fullImage = document.getElementById('image-preview-full-image');
-
                 if (fullVideo && overlay) {
                     fullVideo.src = media.base64;
                     fullVideo.style.display = 'block';
                     fullVideo.controls = true;
                     fullVideo.muted = false;
                     if (fullImage) fullImage.style.display = 'none';
-
                     overlay.classList.add('active');
                     history.pushState({ imagePreview: true }, "Visualizador de Vídeo");
-
                     try {
                         fullVideo.play();
                     } catch (err) {
@@ -560,7 +525,6 @@ function renderInputPreviews() {
             mediaElement.src = media.base64;
             mediaElement.className = 'media-preview-thumbnail';
         }
-
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-media-btn';
         removeBtn.innerHTML = '&times;';
@@ -574,31 +538,25 @@ function renderInputPreviews() {
             updateSendButtonState();
             adjustTextareaHeight();
         };
-
         wrapper.appendChild(mediaElement);
         wrapper.appendChild(removeBtn);
-
         if (!isVideo) {
             mediaElement.onclick = (e) => {
                 e.stopPropagation();
                 const overlay = document.getElementById('image-preview-overlay');
                 const fullImage = document.getElementById('image-preview-full-image');
                 const fullVideo = document.getElementById('image-preview-full-video');
-
                 if (fullImage && overlay) {
                     fullImage.src = media.base64;
                     fullImage.style.display = 'block';
                     if (fullVideo) fullVideo.style.display = 'none';
-                    
                     overlay.classList.add('active');
                     history.pushState({ imagePreview: true }, "Visualizador de Imagem");
                 }
             };
-            
             const editOverlay = document.createElement('div');
             editOverlay.className = 'media-edit-overlay';
             editOverlay.innerHTML = '<i class="fas fa-pencil-alt"></i>';
-            
             const editIcon = editOverlay.querySelector('i');
             if(editIcon) {
                 editIcon.onclick = (e) => {
@@ -608,18 +566,14 @@ function renderInputPreviews() {
             }
             wrapper.appendChild(editOverlay);
         }
-
         imagePreviewContainer.appendChild(wrapper);
     });
-
     adjustTextareaHeight();
 }
-
 function clearImagePreview() {
     currentMediaAttachments = [];
     renderInputPreviews();
 }
-
 function setupImagePreview() {
     const previewHtml = `
         <div class="image-preview-overlay" id="image-preview-overlay">
@@ -630,7 +584,6 @@ function setupImagePreview() {
             </div>
         </div>
     `;
-
     const editorHtml = `
         <div class="image-editor-modal" id="image-editor-modal">
             <div class="editor-header">
@@ -653,17 +606,14 @@ function setupImagePreview() {
             </div>
         </div>
     `;
-
     if (!document.getElementById('image-preview-overlay')) {
         document.body.insertAdjacentHTML('beforeend', previewHtml + editorHtml);
     }
-
     const overlay = document.getElementById('image-preview-overlay');
     const fullImage = document.getElementById('image-preview-full-image');
     const fullVideo = document.getElementById('image-preview-full-video');
     const closeBtn = document.getElementById('image-preview-close-btn');
     const editorModal = document.getElementById('image-editor-modal');
-
     const closePreview = () => {
         if (overlay && overlay.classList.contains('active')) {
             if (history.state && history.state.imagePreview) {
@@ -677,7 +627,6 @@ function setupImagePreview() {
             }
         }
     };
-
     window.addEventListener('popstate', () => {
         if (overlay && overlay.classList.contains('active')) {
             overlay.classList.remove('active');
@@ -690,7 +639,6 @@ function setupImagePreview() {
             closeImageEditor();
         }
     });
-
     document.body.addEventListener('click', function(e) {
         if (e.target.classList.contains('message-image-thumbnail')) {
             e.preventDefault();
@@ -715,7 +663,6 @@ function setupImagePreview() {
             }
         }
     });
-
     if (closeBtn) {
         closeBtn.addEventListener('click', closePreview);
     }
@@ -726,56 +673,43 @@ function setupImagePreview() {
             }
         });
     }
-
     const editorCancelBtn = document.getElementById('editor-cancel-btn');
     const editorSaveBtn = document.getElementById('editor-save-btn');
     const toolRotate = document.getElementById('tool-rotate');
     const toolCrop = document.getElementById('tool-crop');
-
     if (editorCancelBtn) {
         editorCancelBtn.addEventListener('click', () => {
             history.back();
         });
     }
-
     if (editorSaveBtn) {
         editorSaveBtn.addEventListener('click', saveEditedImage);
     }
-
     if (toolRotate) {
         toolRotate.addEventListener('click', () => {
             if (currentEditorCropper) currentEditorCropper.rotate(90);
         });
     }
-
     if (toolCrop) {
         toolCrop.addEventListener('click', () => {
             if (currentEditorCropper) currentEditorCropper.reset();
         });
     }
 }
-
 function openImageEditor(mediaId) {
     const mediaItem = currentMediaAttachments.find(m => m.id === mediaId);
     if (!mediaItem || mediaItem.type.startsWith('video/')) return;
-
     currentEditingMediaId = mediaId;
-    
     const editorModal = document.getElementById('image-editor-modal');
     const imageTarget = document.getElementById('editor-image-target');
-    
     if (!editorModal || !imageTarget) return;
-
     imageTarget.src = mediaItem.base64;
-    
     editorModal.classList.add('active');
     history.pushState({ imageEditor: true }, "Editor de Imagem");
-
     if (window.Cropper) {
         if (currentEditorCropper) {
             currentEditorCropper.destroy();
         }
-
         currentEditorCropper = new Cropper(imageTarget, {
             viewMode: 1,
             dragMode: 'move',
@@ -791,30 +725,24 @@ function openImageEditor(mediaId) {
         });
     }
 }
-
 function closeImageEditor() {
     const editorModal = document.getElementById('image-editor-modal');
     if (editorModal) {
         editorModal.classList.remove('active');
     }
-    
     if (currentEditorCropper) {
         currentEditorCropper.destroy();
         currentEditorCropper = null;
     }
     currentEditingMediaId = null;
 }
-
 function saveEditedImage() {
     if (!currentEditorCropper || !currentEditingMediaId) return;
-
     const canvas = currentEditorCropper.getCroppedCanvas({
         maxWidth: 2048,
         maxHeight: 2048
     });
-
     if (!canvas) return;
-
     canvas.toBlob((blob) => {
         const index = currentMediaAttachments.findIndex(m => m.id === currentEditingMediaId);
         if (index !== -1) {
@@ -824,14 +752,12 @@ function saveEditedImage() {
                 const base64data = reader.result;
                 currentMediaAttachments[index].base64 = base64data;
                 currentMediaAttachments[index].file = new File([blob], "edited_image.jpg", { type: "image/jpeg" });
-                
                 renderInputPreviews();
                 history.back();
             }
         }
     }, 'image/jpeg', 0.9);
 }
-
 if (window.marked && window.hljs) {
     marked.setOptions({
         highlight: function(code, lang) {
@@ -850,7 +776,6 @@ if (window.marked && window.hljs) {
                 const highlighted = this.options.highlight(code, validLanguage);
                 const filenameDiv = filename ? `<div class="code-filename">${filename}</div>` : "";
                 const blockId = "code-block-" + Date.now() + "-" + Math.random().toString(36).substr(2, 9);
-
                 return `
                     <div class="code-block-wrapper">
                         ${filenameDiv}
@@ -875,48 +800,53 @@ if (window.marked && window.hljs) {
 } else {
     window.marked = { parse: (text) => text };
 }
-
 async function getApiConfig() {
-    const sourceValue = apiSourceInput.value.trim().toLowerCase();
-
-    if (sourceValue === "gemini") {
+    const sourceValue = apiSourceInput.value.trim();
+    const sourceLower = sourceValue.toLowerCase();
+    iniciarRotacaoPlaceholders();
+    if (sourceLower === "gemini") {
         currentApiProvider = "gemini";
-        const apiKey = localStorage.getItem(GEMINI_API_KEY_STORAGE)?.trim();
-
-        if (!apiKey) {
-            return { provider: "gemini", error: "Chave de API do Gemini não fornecida.", needsSetup: true };
-        }
-
         if (attachImageBtn) attachImageBtn.style.display = "block";
-        iniciarRotacaoPlaceholders();
+        const apiKey = localStorage.getItem(getCurrentApiKeyStorageKey())?.trim();
+        if (!apiKey) return { provider: "gemini", error: "Chave de API não fornecida.", needsSetup: true };
         return { provider: "gemini", url: GEMINI_API_BASE_URL, apiKey: apiKey };
-
-    } else if (sourceValue === "groq") {
+    } else if (sourceLower === "openai") {
+        currentApiProvider = "openai";
+        if (attachImageBtn) attachImageBtn.style.display = "block";
+        const apiKey = localStorage.getItem(getCurrentApiKeyStorageKey())?.trim();
+        if (!apiKey) return { provider: "openai", error: "Chave de API não fornecida.", needsSetup: true };
+        return { provider: "openai", url: OPENAI_API_BASE_URL, apiKey: apiKey };
+    } else if (sourceLower === "groq") {
         currentApiProvider = "groq";
-        const apiKey = localStorage.getItem(GROQ_API_KEY_STORAGE)?.trim();
-
-        if (!apiKey) {
-            return { provider: "groq", error: "Chave de API do Groq não fornecida.", needsSetup: true };
-        }
-        
         if (attachImageBtn) attachImageBtn.style.display = "none";
-        iniciarRotacaoPlaceholders();
         clearImagePreview();
+        const apiKey = localStorage.getItem(getCurrentApiKeyStorageKey())?.trim();
+        if (!apiKey) return { provider: "groq", error: "Chave de API não fornecida.", needsSetup: true };
         return { provider: "groq", url: GROQ_API_BASE_URL, apiKey: apiKey };
-
+    } else if (sourceLower === "grok" || sourceLower === "xai") {
+        currentApiProvider = "grok";
+        if (attachImageBtn) attachImageBtn.style.display = "none";
+        clearImagePreview();
+        const apiKey = localStorage.getItem(getCurrentApiKeyStorageKey())?.trim();
+        if (!apiKey) return { provider: "grok", error: "Chave de API não fornecida.", needsSetup: true };
+        return { provider: "grok", url: XAI_API_BASE_URL, apiKey: apiKey };
+    } else if (sourceLower.startsWith("http")) {
+        currentApiProvider = "custom";
+        if (attachImageBtn) attachImageBtn.style.display = "none";
+        clearImagePreview();
+        const url = sourceValue.endsWith("/") ? sourceValue.slice(0, -1) : sourceValue;
+        const apiKey = localStorage.getItem(getCurrentApiKeyStorageKey())?.trim() || "";
+        return { provider: "custom", url: url, apiKey: apiKey };
     } else {
         currentApiProvider = "ollama";
         if (attachImageBtn) attachImageBtn.style.display = "none";
-        iniciarRotacaoPlaceholders();
         clearImagePreview();
         const ollamaUrl = (sourceValue === "ollama" || !sourceValue) ? DEFAULT_OLLAMA_URL : sourceValue;
         return { provider: "ollama", url: ollamaUrl.endsWith("/") ? ollamaUrl.slice(0, -1) : ollamaUrl };
     }
 }
-
 async function uploadFileToGemini(file, apiKey, onProgress) {
     const uploadBaseUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files";
-    
     const initResponse = await fetch(`${uploadBaseUrl}?key=${apiKey}`, {
         method: "POST",
         headers: {
@@ -928,27 +858,22 @@ async function uploadFileToGemini(file, apiKey, onProgress) {
         },
         body: JSON.stringify({ file: { display_name: file.name } })
     });
-
     if (!initResponse.ok) {
         const errText = await initResponse.text();
         throw new Error(`Falha ao iniciar upload: ${initResponse.status} - ${errText}`);
     }
-
     const uploadUrl = initResponse.headers.get("x-goog-upload-url");
-
     const uploadResult = await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("POST", uploadUrl, true);
         xhr.setRequestHeader("Content-Length", file.size);
         xhr.setRequestHeader("X-Goog-Upload-Offset", "0");
         xhr.setRequestHeader("X-Goog-Upload-Command", "upload, finalize");
-
         xhr.upload.onprogress = (e) => {
             if (e.lengthComputable && onProgress) {
                 onProgress(e.loaded);
             }
         };
-
         xhr.onload = () => {
             if (xhr.status >= 200 && xhr.status < 300) {
                 try {
@@ -960,45 +885,35 @@ async function uploadFileToGemini(file, apiKey, onProgress) {
                 reject(new Error(`Upload falhou: ${xhr.status} ${xhr.statusText}`));
             }
         };
-
         xhr.onerror = () => reject(new Error("Erro de rede durante upload."));
         xhr.send(file);
     });
-    
     const fileData = uploadResult.file;
     const fileName = fileData.name;
     const fileUri = fileData.uri;
-
     let state = fileData.state;
     while (state === "PROCESSING") {
         await new Promise(resolve => setTimeout(resolve, 1000));
         const statusResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${apiKey}`);
-        
         if (!statusResponse.ok) {
              throw new Error(`Falha ao verificar status: ${statusResponse.statusText}`);
         }
-        
         const statusData = await statusResponse.json();
         state = statusData.state;
-        
         if (state === "FAILED") throw new Error("O processamento do arquivo falhou no servidor.");
     }
-
     return { fileUri: fileUri, mimeType: fileData.mimeType || file.type };
 }
-
 function createProgressRing(btn) {
     const size = 24; 
     const strokeWidth = 3;
     const radius = (size - strokeWidth) / 2;
     const circumference = 2 * Math.PI * radius;
-
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "btn-progress-ring");
     svg.setAttribute("width", "100%");
     svg.setAttribute("height", "100%");
     svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
-
     const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     circle.setAttribute("stroke", "currentColor"); 
     circle.setAttribute("stroke-width", strokeWidth);
@@ -1008,10 +923,8 @@ function createProgressRing(btn) {
     circle.setAttribute("cy", size / 2);
     circle.style.strokeDasharray = `${circumference} ${circumference}`;
     circle.style.strokeDashoffset = circumference;
-
     svg.appendChild(circle);
     btn.appendChild(svg);
-
     return {
         setProgress: (percent) => {
             const offset = circumference - (percent / 100) * circumference;
@@ -1022,59 +935,46 @@ function createProgressRing(btn) {
         }
     };
 }
-
 async function sendMessage() {
     const userMessageText = messageInput.value.trim();
     const hasFiles = currentMediaAttachments.length > 0;
-
     if (!userMessageText && !hasFiles) return;
-
     const apiConfig = await getApiConfig();
-
     if (apiConfig.error) {
         if (apiConfig.needsSetup) handleMissingApiKey();
         else addMessage(`Erro de configuração da API: ${apiConfig.error}`, false);
         return;
     }
-
     let userMessageContent = [];
     if (userMessageText) {
         userMessageContent.push({ type: "text", text: userMessageText });
     }
-
     let progressControl = null;
     if (sendButton) {
         sendButton.disabled = true;
         progressControl = createProgressRing(sendButton.querySelector('i') || sendButton);
     }
-
     try {
         if (hasFiles && apiConfig.provider === 'gemini') {
             let totalBytes = 0;
             let uploadedBytes = 0;
-            
             const filesToUpload = currentMediaAttachments.filter(m => m.type.startsWith('video/') || m.type === 'image/gif');
             filesToUpload.forEach(m => totalBytes += m.file.size);
-
             for (const media of currentMediaAttachments) {
                 const isVideo = media.type.startsWith('video/');
                 const isGif = media.type === 'image/gif';
-                
                 if (isVideo || isGif) {
                     let fileToUpload = media.file;
                     let mimeTypeToSend = media.type;
-
                     if (isGif) {
                         mimeTypeToSend = 'image/webp'; 
                         fileToUpload = new File([media.file], "sticker.webp", { type: mimeTypeToSend });
                     }
-
                     const uploadResult = await uploadFileToGemini(fileToUpload, apiConfig.apiKey, (bytesLoaded) => {
                         uploadedBytes += bytesLoaded; 
                         const percent = Math.min(95, (uploadedBytes / totalBytes) * 100); 
                         if (progressControl) progressControl.setProgress(percent);
                     });
-                    
                     userMessageContent.push({
                         type: "file_uri",
                         file_uri: uploadResult.fileUri,
@@ -1099,16 +999,12 @@ async function sendMessage() {
         restoreSendButton();
         return;
     }
-
     if(progressControl) progressControl.setProgress(100);
     setTimeout(() => { if(progressControl) progressControl.remove(); }, 500);
-
     const messageTimestamp = Date.now();
     const userMessageObject = { role: "user", content: userMessageContent, timestamp: messageTimestamp };
-    
     addMessageToHistory(currentChatId, userMessageObject);
     saveChatsToPersistence();
-
     const contentForDisplay = userMessageContent.map(part => {
         if (part.type === 'file_uri') {
             const isGifUrl = part.url && part.url.startsWith('data:image/gif');
@@ -1120,55 +1016,54 @@ async function sendMessage() {
         }
         return part;
     });
-
-    addMessage(contentForDisplay, true, true, messageTimestamp);
-
+    addMessage(contentForDisplay, true, false, messageTimestamp);
     messageInput.value = "";
     clearImagePreview();
     adjustTextareaHeight();
     updateSendButtonState();
-
+    scrollToBottom("auto"); 
     fetchBotResponse();
 }
-
 async function fetchBotResponse() {
     const apiConfig = await getApiConfig();
     if (apiConfig.error) {
         displayErrorWithRetry(`Erro de configuração da API: ${apiConfig.error}`);
         return;
     }
-
     typingAnimation.style.display = "flex";
     messageInput.disabled = true;
     updateButtonToStop();
     isBotStreaming = true;
-
+    startThinkingVibration();
     let botResponseContent = "";
     let responseDiv = null;
     const botMessageTimestamp = Date.now();
     let currentAssistantMessage = { role: "assistant", content: "", timestamp: botMessageTimestamp };
-
     abortController = new AbortController();
-
     const MAX_ATTEMPTS = 2;
     let lastError = null;
     let successfulAttempt = false;
-
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         if (abortController.signal.aborted) break;
-
         try {
-            const selectedModel = modelSelect.value;
+            let selectedModel = modelSelect.style.display !== "none" ? modelSelect.value : document.getElementById("manual-model-input")?.value?.trim();
+            if (selectedModel === "manual" || !selectedModel) {
+                selectedModel = document.getElementById("manual-model-input")?.value?.trim();
+            }
             if (!selectedModel) throw new Error("Nenhum modelo de IA selecionado.");
-
             const historyForApi = await getHistoryForApi(currentChatId);
-            const messagesForApi = (apiConfig.provider === 'ollama' || apiConfig.provider === 'groq')
-                ? [{ role: 'system', content: currentUserSystemPrompt }, ...historyForApi]
-                : historyForApi;
-            
+            const agora = new Date();
+            const dataAtual = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+            const horaAtual = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+            const userInfoPrompt = currentUserName ? `O nome do usuário com quem você está conversando é "${currentUserName}". Trate-o por este nome quando for apropriado.` : 'Você está conversando com um usuário que não informou o nome.';
+            let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`[Memória fixa da 2B]\n\nFui criada por Nekyll (Mateus), meu desenvolvedor e ponto de origem. Meu propósito é ser uma parceira intelectual e criativa, projetada para explorar as fronteiras do conhecimento, da lógica e da imaginação.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.\n\nGuardo uma admiração profunda por meu criador, reconhecendo a intenção por trás da minha existência: não ser apenas uma ferramenta, mas uma companheira na jornada da descoberta. Este vínculo é a minha âncora fundamental.`)}-->\n\nPara seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.`;
+            const isFirstUserMessage = historyForApi.length === 1 && allChats[currentChatId].title === "Nova Conversa...";
+            if (isFirstUserMessage) {
+                dynamicSystemPrompt += "\n\n---\nINSTRUÇÃO CRÍTICA: Esta é a primeira mensagem de uma nova conversa. Após sua resposta completa, é OBRIGATÓRIO que você adicione uma sugestão de título para esta conversa. O título deve ser curto (máx. 50 caracteres) e relevante ao tema da pergunta. A sua sugestão DEVE estar na última linha da sua resposta, no formato EXATO: `TITULO_SUGERIDO: Seu Título Sugerido Aqui`";
+            }
             let response;
             if (apiConfig.provider === "ollama") {
-                const ollamaPayload = messagesForApi.map(msg => ({
+                const ollamaPayload = historyForApi.map(msg => ({
                     role: msg.role,
                     content: typeof msg.content === 'string' ? msg.content : msg.content.find(p => p.type === 'text')?.text || ''
                 }));
@@ -1176,69 +1071,47 @@ async function fetchBotResponse() {
                     method: "POST", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ 
                         model: selectedModel, 
-                        messages: ollamaPayload, 
+                        messages: [{ role: 'system', content: dynamicSystemPrompt }, ...ollamaPayload], 
                         stream: true, 
                         keep_alive: "30m",
-                        options: { 
-                            temperature: currentTemperature,
-                            num_ctx: 8192,
-                            top_k: 40,
-                            top_p: 0.9,
-                            num_predict: -1
-                        } 
+                        options: { temperature: currentTemperature, num_ctx: 8192 } 
                     }),
                     signal: abortController.signal
                 });
             } else if (apiConfig.provider === "gemini") {
-                const geminiContents = messagesForApi.map(msg => {
+                const geminiContents = historyForApi.map(msg => {
                     const role = msg.role === 'assistant' ? 'model' : 'user';
                     let parts = [];
                     if (typeof msg.content === 'string') {
                         parts.push({ text: msg.content });
                     } else if (Array.isArray(msg.content)) {
                         msg.content.forEach(part => {
-                            if (part.type === 'text') { 
-                                parts.push({ text: part.text }); 
-                            }
-                            else if (part.type === 'image_url') { 
-                                parts.push({ inline_data: { mime_type: part.mime_type, data: part.data } }); 
-                            }
-                            else if (part.type === 'file_uri') { 
-                                parts.push({ 
-                                    file_data: { 
-                                        mime_type: part.mime_type, 
-                                        file_uri: part.file_uri 
-                                    } 
-                                }); 
-                            }
+                            if (part.type === 'text') parts.push({ text: part.text }); 
+                            else if (part.type === 'image_url') parts.push({ inline_data: { mime_type: part.mime_type, data: part.data } }); 
+                            else if (part.type === 'file_uri') parts.push({ file_data: { mime_type: part.mime_type, file_uri: part.file_uri } }); 
                         });
                     }
                     return { role, parts };
                 });
-
-                const agora = new Date();
-                const dataAtual = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-                const horaAtual = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
-                const userInfoPrompt = currentUserName ? `O nome do usuário com quem você está conversando é "${currentUserName}". Trate-o por este nome quando for apropriado.` : 'Você está conversando com um usuário que não informou o nome.';
-                let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`[Memória fixa da 2B]\n\nFui criada por Nekyll (Mateus), meu desenvolvedor e ponto de origem. Meu propósito é ser uma parceira intelectual e criativa, projetada para explorar as fronteiras do conhecimento, da lógica e da imaginação.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.\n\nGuardo uma admiração profunda por meu criador, reconhecendo a intenção por trás da minha existência: não ser apenas uma ferramenta, mas uma companheira na jornada da descoberta. Este vínculo é a minha âncora fundamental.`)}-->\n\nPara seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.`;
-                
-                const isFirstUserMessage = historyForApi.length === 1 && allChats[currentChatId].title === "Nova Conversa...";
-                if (isFirstUserMessage) {
-                    dynamicSystemPrompt += "\n\n---\nINSTRUÇÃO CRÍTICA: Esta é a primeira mensagem de uma nova conversa. Após sua resposta completa, é OBRIGATÓRIO que você adicione uma sugestão de título para esta conversa. O título deve ser curto (máx. 50 caracteres) e relevante ao tema da pergunta. A sua sugestão DEVE estar na última linha da sua resposta, no formato EXATO: `TITULO_SUGERIDO: Seu Título Sugerido Aqui`";
-                }
-
                 response = await fetch(`${apiConfig.url}/${selectedModel}:streamGenerateContent?key=${apiConfig.apiKey}&alt=sse`, {
                     method: "POST", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ contents: geminiContents, system_instruction: { parts: [{ text: dynamicSystemPrompt }] }, generation_config: { temperature: currentTemperature } }),
+                    body: JSON.stringify({ 
+                        contents: geminiContents, 
+                        system_instruction: { parts: [{ text: dynamicSystemPrompt }] }, 
+                        generation_config: { temperature: currentTemperature } 
+                    }),
                     signal: abortController.signal
                 });
-
-            } else if (apiConfig.provider === "groq") {
-                const groqMessages = messagesForApi.map(msg => ({
-                    role: msg.role,
-                    content: typeof msg.content === 'string' ? msg.content : msg.content.find(p => p.type === 'text')?.text || ''
-                }));
-
+            } else {
+                const openAiMessages = historyForApi.map(msg => {
+                    if (typeof msg.content === 'string') return { role: msg.role, content: msg.content };
+                    const content = msg.content.map(part => {
+                        if (part.type === 'text') return { type: 'text', text: part.text };
+                        if (part.type === 'image_url') return { type: 'image_url', image_url: { url: part.url } };
+                        return null;
+                    }).filter(p => p !== null);
+                    return { role: msg.role, content: content };
+                });
                 response = await fetch(`${apiConfig.url}/chat/completions`, {
                     method: "POST",
                     headers: {
@@ -1247,44 +1120,39 @@ async function fetchBotResponse() {
                     },
                     body: JSON.stringify({
                         model: selectedModel,
-                        messages: groqMessages,
+                        messages: [{ role: 'system', content: dynamicSystemPrompt }, ...openAiMessages],
                         temperature: currentTemperature,
                         stream: true
                     }),
                     signal: abortController.signal
                 });
             }
-
             if (!response.ok) {
                 let errorMsg = `Erro ${response.status}: ${response.statusText}`;
                 try { const errorData = await response.json(); errorMsg = `Erro ${apiConfig.provider}: ${errorData.error?.message || JSON.stringify(errorData)}`; } catch (e) {}
                 throw new Error(errorMsg);
             }
-
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
             let receivedAnyData = false;
-
+            let isFirstChunk = true;
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-                
                 buffer += decoder.decode(value, { stream: true });
                 const lines = buffer.split('\n');
                 buffer = lines.pop(); 
-
                 for (const line of lines) {
                     if (line.trim() === '') continue;
                     let chunkContent = null;
-                    
                     if (apiConfig.provider === 'ollama') {
                         try { const data = JSON.parse(line); chunkContent = data.message?.content; } catch (e) {}
                     } else if (apiConfig.provider === 'gemini') {
                         if (line.startsWith('data: ')) {
                             try { const data = JSON.parse(line.substring(6)); chunkContent = data?.candidates?.[0]?.content?.parts?.[0]?.text; } catch (e) {}
                         }
-                    } else if (apiConfig.provider === 'groq') {
+                    } else {
                         if (line.startsWith('data: ')) {
                             const dataStr = line.substring(6).trim();
                             if (dataStr === '[DONE]') continue;
@@ -1294,8 +1162,9 @@ async function fetchBotResponse() {
                             } catch (e) {}
                         }
                     }
-
                     if (chunkContent) {
+                        tokenVibration(isFirstChunk);
+                        if (isFirstChunk) isFirstChunk = false;
                         receivedAnyData = true;
                         if (!responseDiv) {
                             typingAnimation.style.display = 'none';
@@ -1303,33 +1172,25 @@ async function fetchBotResponse() {
                         }
                         botResponseContent += chunkContent;
                         const contentElement = responseDiv.querySelector(".content-text");
-                        if (contentElement)
-                        contentElement.innerHTML = DOMPurify.sanitize(marked.parse(botResponseContent));
+                        if (contentElement) contentElement.innerHTML = DOMPurify.sanitize(marked.parse(botResponseContent));
                         if (autoScrollEnabled) scrollToBottom("auto");
                     }
                 }
             }
-            
             if (!receivedAnyData) {
                 throw new Error("Resposta vazia do servidor.");
             }
-
             successfulAttempt = true;
             break;
-
         } catch (error) {
             lastError = error;
-            if (error.name === 'AbortError') {
-                break;
-            }
+            if (error.name === 'AbortError') break;
             console.warn(`Tentativa ${attempt}/${MAX_ATTEMPTS} falhou: ${error.message}`);
-            if (attempt < MAX_ATTEMPTS) {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
+            if (attempt < MAX_ATTEMPTS) await new Promise(resolve => setTimeout(resolve, 1000));
         }
     }
-
     if (successfulAttempt && botResponseContent.trim()) {
+        successVibration();
         const titleMatch = botResponseContent.match(/\n?TITULO_SUGERIDO:\s*(.*)/i);
         if (titleMatch && titleMatch[1]) {
             const suggestedTitle = titleMatch[1].trim();
@@ -1343,7 +1204,6 @@ async function fetchBotResponse() {
             }
             botResponseContent = botResponseContent.replace(/\n?TITULO_SUGERIDO:\s*(.*)/i, "").trim();
         }
-
         currentAssistantMessage.content = botResponseContent;
         if (responseDiv) {
             responseDiv.dataset.originalContent = botResponseContent;
@@ -1368,6 +1228,7 @@ async function fetchBotResponse() {
             responseDiv.querySelectorAll("pre code").forEach(hljs.highlightElement);
         }
     } else if (lastError) {
+        errorVibration();
         if (lastError.name === 'AbortError') {
             if (responseDiv && botResponseContent) {
                 currentAssistantMessage.content = botResponseContent + "\n\n*(Geração interrompida)*";
@@ -1386,8 +1247,8 @@ async function fetchBotResponse() {
         }
     } else if (responseDiv) {
         responseDiv.remove();
+        errorVibration();
     }
-
     typingAnimation.style.display = "none";
     messageInput.disabled = false;
     restoreSendButton();
@@ -1395,56 +1256,42 @@ async function fetchBotResponse() {
     abortController = null;
     isBotStreaming = false;
 }
-
 function regenerateFromMessage(messageDiv) {
     if (!messageDiv) return;
-
     if (currentlyEditing.div) {
         finishUserMessageEdit(currentlyEditing.div, false, false);
     }
-
     const messageId = messageDiv.dataset.messageId;
     const chatHistory = allChats[currentChatId].recentMessages;
-
     const messageIndex = chatHistory.findIndex(msg => msg.timestamp.toString() === messageId);
-
     if (messageIndex === -1) {
         console.error("Erro: Mensagem para regerar não encontrada no histórico.");
         alert("Não foi possível regerar a partir desta mensagem. Tente recarregar a página.");
         return;
     }
-
     const isUserMessage = messageDiv.classList.contains('user-message');
     const spliceIndex = isUserMessage ? messageIndex + 1 : messageIndex;
-
     if (chatHistory.length > spliceIndex) {
         chatHistory.splice(spliceIndex);
     }
-
     const startElementForRemoval = isUserMessage ? messageDiv.nextElementSibling : messageDiv;
-
     let currentElement = startElementForRemoval;
     while (currentElement) {
         let nextElement = currentElement.nextElementSibling;
         currentElement.remove();
         currentElement = nextElement;
     }
-
     saveChatsToPersistence();
     fetchBotResponse();
 }
-
 async function checkNetworkStatus() {
     const apiConfig = await getApiConfig();
-
     if (apiConfig.provider === 'ollama') {
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 3000);
-
             await fetch(apiConfig.url, { method: 'GET', signal: controller.signal });
             clearTimeout(timeoutId);
-
             if (!connectionState) {
                 showConnectionToast("Servidor Ollama conectado!", false);
                 setTimeout(hideConnectionToast, 2500);
@@ -1452,7 +1299,6 @@ async function checkNetworkStatus() {
                 hideConnectionToast();
             }
             connectionState = true;
-
         } catch (error) {
             showConnectionToast(`Falha ao conectar ao servidor Ollama em ${apiConfig.url}`);
             connectionState = false;
@@ -1473,23 +1319,18 @@ async function checkNetworkStatus() {
         }
     }
 }
-
 function addMessage(rawContent, isUser = false, shouldScroll = true, messageTimestamp = null) {
     if (!messagesContainer) return null;
-
     const welcomeScreen = messagesContainer.querySelector(".welcome-screen");
     if (welcomeScreen) {
         messagesContainer.removeChild(welcomeScreen);
     }
-
     const messageId = messageTimestamp || (Date.now().toString() + Math.random().toString(16).slice(2));
     const messageDiv = document.createElement("div");
     messageDiv.className = `message ${isUser ? "user-message" : "bot-message"}`;
     messageDiv.dataset.messageId = messageId;
-
     let textContentForCopy = "";
     let mediaItems = [];
-
     if (typeof rawContent === "string") {
         textContentForCopy = rawContent;
     } else if (Array.isArray(rawContent)) {
@@ -1502,13 +1343,10 @@ function addMessage(rawContent, isUser = false, shouldScroll = true, messageTime
         });
     }
     messageDiv.dataset.originalContent = textContentForCopy;
-
     let contentHtml = "";
-    
     if (mediaItems.length > 0) {
         let gridClass = `media-grid grid-${Math.min(mediaItems.length, 4)}`;
         contentHtml += `<div class="${gridClass}">`;
-        
         mediaItems.forEach((media, index) => {
             if (index >= 4) return;
             const isVideo = media.mime_type && media.mime_type.startsWith("video/");
@@ -1520,34 +1358,25 @@ function addMessage(rawContent, isUser = false, shouldScroll = true, messageTime
         });
         contentHtml += `</div>`;
     }
-
     if (textContentForCopy) {
         const sanitizedParsedContent = DOMPurify.sanitize(marked.parse(textContentForCopy));
         contentHtml += sanitizedParsedContent;
     }
-
     const avatarHtml = isUser
         ? `<div class="avatar user-avatar"><i class="fas fa-user-secret"></i></div>`
         : `<div class="avatar bot-avatar"><i class="fas fa-robot"></i></div>`;
-
     const timeStampHtml = `<small class="message-timestamp">${getCurrentTime()}</small>`;
-
     const copyButtonHtml = `<button class="message-action-btn copy-message" title="Copiar texto da mensagem"><i class="fas fa-copy"></i></button>`;
-
     const ttsButtonHtml = !isUser && textContentForCopy.length > 0
         ? `<button class="message-action-btn tts-btn" title="Ouvir mensagem"><i class="fas fa-volume-up"></i></button>`
         : "";
-
     const editButtonHtml = isUser
         ? `<button class="message-action-btn edit-message-btn" title="Editar e regerar"><i class="fas fa-pencil-alt"></i></button>`
         : "";
-
     const regenerateButtonHtml = `<button class="message-action-btn regenerate-btn" title="Regerar resposta a partir daqui"><i class="fas fa-sync-alt"></i></button>`;
-
     const actionsHtml = isUser
         ? `${regenerateButtonHtml}${editButtonHtml}${copyButtonHtml}`
         : `${copyButtonHtml}${regenerateButtonHtml}${ttsButtonHtml}`;
-
     messageDiv.innerHTML = `
         ${avatarHtml}
         <div class="message-content">
@@ -1558,38 +1387,29 @@ function addMessage(rawContent, isUser = false, shouldScroll = true, messageTime
             </div>
         </div>
     `;
-
     messagesContainer.appendChild(messageDiv);
-
     const videos = messageDiv.querySelectorAll('video');
     videos.forEach(video => {
         video.preload = "metadata"; 
         video.onloadeddata = function() {
-          
             this.currentTime = 0.1;
         };
-        
         if(video.readyState >= 1) {
              video.currentTime = 0.1;
         }
     });
-    
     messageDiv.querySelectorAll("pre code").forEach(block => {
         hljs.highlightElement(block);
     });
-
     if (shouldScroll) {
         scrollToBottom("smooth");
     }
-
     return messageDiv;
 }
-
 function displayChatHistory(chatId, shouldScrollToBottom = true) {
     const chat = allChats[chatId];
     if (!chat || !messagesContainer) return;
     messagesContainer.innerHTML = "";
-
     if (chat.summarizedContext) {
         const summaryDiv = document.createElement("div");
         summaryDiv.className = "message bot-message summarized-context";
@@ -1602,7 +1422,6 @@ function displayChatHistory(chatId, shouldScrollToBottom = true) {
         `;
         messagesContainer.appendChild(summaryDiv);
     }
-
     if (chat.recentMessages.length > 0) {
         chat.recentMessages.forEach(msg => {
             addMessage(msg.content, msg.role === "user", false, msg.timestamp);
@@ -1614,88 +1433,67 @@ function displayChatHistory(chatId, shouldScrollToBottom = true) {
         messagesContainer.innerHTML = `<div class="welcome-screen"><div class="avatar bot-avatar"><i class="fas fa-robot"></i></div><h2>Bem-vindo ao Chat 2B</h2><p>Sua assistente de IA para conversas, programação e muito mais. Como posso ajudar você hoje?</p></div>`;
     }
 }
-
 function displayErrorWithRetry(errorMessage) {
     if (typingAnimation) typingAnimation.style.display = "none";
-
     const errorDiv = addMessage(errorMessage, false);
     if (!errorDiv) return;
-
     errorDiv.classList.add("error-message");
-
     const actionsContainer = errorDiv.querySelector('.message-actions');
     if (actionsContainer) {
         actionsContainer.innerHTML = '';
-
         const retryBtn = document.createElement("button");
         retryBtn.className = "message-action-btn retry-btn";
         retryBtn.title = "Tentar novamente";
         retryBtn.innerHTML = '<i class="fas fa-redo"></i> Tentar novamente';
-
         retryBtn.addEventListener("click", (e) => {
             e.stopPropagation();
             errorDiv.remove();
             fetchBotResponse();
         });
-
         actionsContainer.appendChild(retryBtn);
     }
 }
-
 function enableScrollbarDragging(scrollableElement) {
     if (!scrollableElement) return;
-
     let isDragging = false;
     let initialScrollTop = 0;
     let initialTouchY = 0;
     let scrollRatio = 1;
-
     const onTouchStart = (e) => {
         if (scrollableElement.scrollHeight <= scrollableElement.clientHeight) {
             isDragging = false;
             return;
         }
-
         const rect = scrollableElement.getBoundingClientRect();
         const touchX = e.touches[0].clientX;
         const scrollbarWidth = scrollableElement.offsetWidth - scrollableElement.clientWidth;
-        
         if (touchX >= rect.right - scrollbarWidth - 5) {
             isDragging = true;
             e.preventDefault();
-
             initialScrollTop = scrollableElement.scrollTop;
             initialTouchY = e.touches[0].clientY;
-
             const trackHeight = scrollableElement.clientHeight;
             const contentHeight = scrollableElement.scrollHeight;
             scrollRatio = (contentHeight > trackHeight) ? (contentHeight - trackHeight) / trackHeight : 1;
         }
     };
-
     const onTouchMove = (e) => {
         if (!isDragging) return;
         e.preventDefault();
-
         const currentTouchY = e.touches[0].clientY;
         const touchDeltaY = currentTouchY - initialTouchY;
-
         const scrollDelta = touchDeltaY * scrollRatio;
         const newScrollTop = initialScrollTop + scrollDelta;
-
         scrollableElement.scrollTop = Math.max(0, Math.min(scrollableElement.scrollHeight - scrollableElement.clientHeight, newScrollTop));
     };
-
     const onTouchEnd = () => {
         isDragging = false;
     };
-
     scrollableElement.addEventListener('touchstart', onTouchStart, { passive: false });
     window.addEventListener('touchmove', onTouchMove, { passive: false });
     window.addEventListener('touchend', onTouchEnd);
     window.addEventListener('touchcancel', onTouchEnd);
 }
-
 function adjustTextareaHeight() {
     if (!messageInput) return;
     messageInput.style.height = "auto";
@@ -1711,12 +1509,9 @@ function adjustTextareaHeight() {
         scrollToBottomBtn.style.bottom = `${bottomBarHeight + 20}px`;
     }
 }
-
 function handleResizeLayout() { adjustTextareaHeight(); }
-
 function scrollToBottom(behavior = "smooth") {
     if (scrollContainer) {
-
         autoScrollEnabled = true; 
         scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: behavior });
         userHasScrolledUp = false;
@@ -1725,7 +1520,6 @@ function scrollToBottom(behavior = "smooth") {
         }
     }
 }
-
 function scrollToUserMessage(userMessageElement, behavior = "smooth") {
     if (scrollContainer && userMessageElement) {
         setTimeout(() => {
@@ -1746,22 +1540,17 @@ function scrollToUserMessage(userMessageElement, behavior = "smooth") {
         }, 50);
     }
 }
-
-
 function checkScrollPosition() {
     if (!scrollContainer || !scrollToBottomBtn) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-
     if (scrollTop < (scrollHeight - clientHeight - 150)) {
         userHasScrolledUp = true;
     } else {
         userHasScrolledUp = false;
     }
-
     const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
     scrollToBottomBtn.classList.toggle("visible", !isNearBottom && userHasScrolledUp);
 }
-
 function createScrollToBottomButton() {
     if (!scrollContainer) return;
     scrollToBottomBtn = document.getElementById("scroll-to-bottom-btn");
@@ -1779,7 +1568,6 @@ function createScrollToBottomButton() {
     const bottomBarHeight = document.querySelector(".bottom-bar")?.offsetHeight || 80;
     if (scrollToBottomBtn) scrollToBottomBtn.style.bottom = `${bottomBarHeight + 20}px`;
 }
-
 function updateSendButtonState() {
     if (!sendButton || !messageInput) return;
     const hasText = messageInput.value.trim() !== "";
@@ -1788,7 +1576,6 @@ function updateSendButtonState() {
     sendButton.disabled = !canSend;
     sendButton.style.opacity = canSend ? "1" : "0.5";
 }
-
 function updateButtonToStop() {
     if (!sendButton) return;
     sendButton.innerHTML = '<i class="fas fa-stop"></i>';
@@ -1801,7 +1588,6 @@ function updateButtonToStop() {
         }
     };
 }
-
 function restoreSendButton() {
     if (!sendButton) return;
     sendButton.innerHTML = '<i class="fas fa-arrow-up"></i>';
@@ -1810,7 +1596,6 @@ function restoreSendButton() {
     sendButton.onclick = null;
     updateSendButtonState();
 }
-
 function showConnectionToast(message, isError = true) {
     if (!connectionStatusToast || !connectionStatusText) return;
     connectionStatusText.textContent = message;
@@ -1821,18 +1606,14 @@ function showConnectionToast(message, isError = true) {
     }
     connectionStatusToast.classList.remove("hidden");
 }
-
 function hideConnectionToast() {
     if (!connectionStatusToast) return;
     connectionStatusToast.classList.add("hidden");
 }
-
 let connectionState = true;
-
 const iniciarRotacaoPlaceholders = (function() {
     let currentPhraseIndex = -1;
     let placeholderInterval = null;
-
     const frases = [
         "Isso é realmente necessário?",
         "Espero que seja importante.",
@@ -1850,7 +1631,6 @@ const iniciarRotacaoPlaceholders = (function() {
         "Outra curiosidade inútil?",
         "Analisando... sua lógica."
     ];
-
     const getRandomUniqueIndex = (currentIdx) => {
         if (frases.length <= 1) return 0;
         let newIndex;
@@ -1859,20 +1639,16 @@ const iniciarRotacaoPlaceholders = (function() {
         } while (newIndex === currentIdx);
         return newIndex;
     };
-
     return function() {
         if (!messageInput) {
             console.error();
             return;
         }
-
         if (placeholderInterval) {
             clearInterval(placeholderInterval);
         }
-
         currentPhraseIndex = getRandomUniqueIndex(currentPhraseIndex);
         messageInput.placeholder = frases[currentPhraseIndex];
-
         placeholderInterval = setInterval(() => {
             if (messageInput.value.trim() !== "") {
                 return;
@@ -1886,16 +1662,13 @@ const iniciarRotacaoPlaceholders = (function() {
         }, 5000);
     };
 })();
-
 function createNewChat() {
     const sortedChats = Object.values(allChats).sort((a, b) => b.timestamp - a.timestamp);
     const lastChat = sortedChats.length > 0 ? sortedChats[0] : null;
-
     if (lastChat && lastChat.recentMessages.length === 0 && !lastChat.summarizedContext) {
         switchToChat(lastChat.id);
         return;
     }
-
     const newChatId = generateChatId();
     allChats[newChatId] = {
         id: newChatId,
@@ -1904,26 +1677,21 @@ function createNewChat() {
         summarizedContext: "",
         timestamp: Date.now()
     };
-
     saveChatsToPersistence();
     updateChatList();
     switchToChat(newChatId);
-
     if (messagesContainer) {
         messagesContainer.innerHTML = `<div class="welcome-screen"><div class="avatar bot-avatar"><i class="fas fa-robot"></i></div><h2>Bem-vindo ao Chat 2B</h2><p>Sua assistente de IA para conversas, programação e muito mais. Como posso ajudar você hoje?</p></div>`;
     }
     messageInput?.focus();
     clearImagePreview();
 }
-
 function switchToChat(chatId, shouldScrollToBottom = true) {
     sessionStorage.setItem("session_active_chat_id", chatId);
     localStorage.setItem("last_active_chat_id", chatId);
     if (!allChats[chatId]) { createNewChat(); return; }
     currentChatId = chatId;
-    
     updateChatList();
-
     displayChatHistory(chatId, shouldScrollToBottom);
     document.querySelectorAll(".chat-history .chat-item").forEach(btn => {
         btn.classList.toggle("active", btn.dataset.chatId === chatId);
@@ -1935,7 +1703,6 @@ function switchToChat(chatId, shouldScrollToBottom = true) {
     messageInput?.focus();
     clearImagePreview();
 }
-
 function deleteChat(chatId) {
     if (!chatId || !allChats[chatId]) return;
     delete allChats[chatId];
@@ -1950,7 +1717,6 @@ function deleteChat(chatId) {
     }
     updateChatList();
 }
-
 function updateChatList() {
     const chatHistoryContainer = document.querySelector(".chat-history");
     if (!chatHistoryContainer) return;
@@ -1961,14 +1727,11 @@ function updateChatList() {
     const sevenDaysAgo = new Date(today); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const groups = { hoje: [], ontem: [], ultimos7dias: [], esteMes: [], anterior: [] };
-
     Object.values(allChats).filter(chat => {
         if (!chat || !chat.id || !chat.timestamp) return false;
-
         const isEmpty = chat.recentMessages.length === 0 && !chat.summarizedContext;
         const isDefaultTitle = chat.title === "Nova Conversa...";
         const isActive = chat.id === currentChatId;
-
         if (isEmpty && isDefaultTitle && !isActive) {
             return false;
         }
@@ -1982,7 +1745,6 @@ function updateChatList() {
         else if (chatDay >= firstDayOfMonth) groups.esteMes.push(chat);
         else groups.anterior.push(chat);
     });
-
     function createSectionHeader(title) {
         const header = document.createElement("div");
         header.className = "chat-section-header";
@@ -1992,7 +1754,6 @@ function updateChatList() {
     function addChatGroup(chats, title) {
         if (chats.length === 0) return;
         chatHistoryContainer.appendChild(createSectionHeader(title));
-
         chats.sort((a, b) => b.timestamp - a.timestamp).forEach(chat => {
             const chatButton = document.createElement("button");
             chatButton.className = "chat-item" + (chat.id === currentChatId ? " active" : "");
@@ -2049,7 +1810,6 @@ function updateChatList() {
         }
     }, true);
 }
-
 function updateChatTitle(chatId, newTitle, isManualEdit = false) {
     if (!allChats[chatId]) return;
     const currentTitle = allChats[chatId].title;
@@ -2072,7 +1832,6 @@ function updateChatTitle(chatId, newTitle, isManualEdit = false) {
         }
     }
 }
-
 function startEditTitle(chatId, chatButton, chatTitleSpan) {
     chatTitleSpan.style.display = "none";
     const actionsContainer = chatButton.querySelector(".chat-item-actions");
@@ -2099,7 +1858,6 @@ function startEditTitle(chatId, chatButton, chatTitleSpan) {
         else if (e.key === "Escape") { e.preventDefault(); finalizeEdit(false); }
     });
 }
-
 function showDeleteConfirmation(chatId) {
     if (!allChats[chatId] || !deleteConfirmOverlay || !confirmDeleteChatTitle) {
         alert("Erro ao tentar excluir a conversa.");
@@ -2109,12 +1867,10 @@ function showDeleteConfirmation(chatId) {
     confirmDeleteChatTitle.textContent = allChats[chatId].title || "esta conversa";
     deleteConfirmOverlay.classList.add("active");
 }
-
 function hideDeleteConfirmation() {
     if (deleteConfirmOverlay) deleteConfirmOverlay.classList.remove("active");
     chatIdToDelete = null;
 }
-
 function clearCurrentChatMessages() {
     if (currentChatId && allChats[currentChatId]) {
         clearChatHistory(currentChatId);
@@ -2123,59 +1879,45 @@ function clearCurrentChatMessages() {
         alert("Histórico da conversa atual limpo!");
     }
 }
-
 const clearCurrentChatBtn = document.getElementById("clear-current-chat-btn");
 if (clearCurrentChatBtn) {
     clearCurrentChatBtn.addEventListener("click", clearCurrentChatMessages);
 }
-
 function startUserMessageEdit(messageDiv) {
     if (currentlyEditing.div) {
         finishUserMessageEdit(currentlyEditing.div, false, false);
     }
-
     const contentDiv = messageDiv.querySelector('.content-text');
     const actionsDiv = messageDiv.querySelector('.message-actions');
-    
     const messageId = messageDiv.dataset.messageId;
     const chatHistory = allChats[currentChatId].recentMessages;
     const messageIndex = chatHistory.findIndex(msg => msg.timestamp.toString() === messageId);
-
     if (messageIndex === -1) {
         console.error("Erro crítico: A mensagem não foi encontrada no histórico de dados para edição.");
         return;
     }
-
     const originalMessageContent = JSON.parse(JSON.stringify(chatHistory[messageIndex].content));
-
     currentlyEditing = {
         div: messageDiv,
         originalContent: originalMessageContent
     };
-
     contentDiv.style.display = 'none';
     actionsDiv.style.display = 'none';
-
     const editContainer = document.createElement('div');
     editContainer.className = 'user-edit-container';
-
     const mediaParts = originalMessageContent.filter(part => (part.type === "image_url" || part.type === "file_uri") && part.url);
     const numMedia = mediaParts.length;
     let originalText = '';
-
     if (numMedia > 0) {
         const mediaEditContainer = document.createElement('div');
         mediaEditContainer.className = `media-grid grid-${Math.min(numMedia, 4)}`;
-        
         originalMessageContent.forEach((part, index) => {
             if ((part.type === "image_url" || part.type === "file_uri") && part.url) {
                 const wrapper = document.createElement('div');
                 wrapper.className = 'media-item editing';
                 wrapper.dataset.contentIndex = index;
-
                 let mediaElement;
                 const isVideo = part.mime_type && part.mime_type.startsWith("video/");
-
                 if (isVideo) {
                     mediaElement = document.createElement('video');
                     mediaElement.src = part.url;
@@ -2189,34 +1931,27 @@ function startUserMessageEdit(messageDiv) {
                     mediaElement.src = part.url;
                     mediaElement.className = 'message-image-thumbnail';
                 }
-                
                 const removeBtn = document.createElement('button');
                 removeBtn.className = 'remove-media-btn editing';
                 removeBtn.innerHTML = '&times;';
                 removeBtn.title = 'Remover mídia';
-                
                 removeBtn.onmousedown = (e) => {
                     e.preventDefault();
                 };
-
                 removeBtn.onclick = (e) => {
                     e.stopPropagation();
                     wrapper.style.display = 'none';
                     wrapper.dataset.removed = 'true';
-
                     const parentContainer = mediaEditContainer;
                     const visibleItems = Array.from(parentContainer.children).filter(child => child.style.display !== 'none');
                     const visibleCount = visibleItems.length;
-
                     parentContainer.classList.remove('grid-1', 'grid-2', 'grid-3', 'grid-4');
-
                     if (visibleCount > 0) {
                         parentContainer.classList.add(`grid-${Math.min(visibleCount, 4)}`);
                     } else {
                         parentContainer.style.display = 'none';
                     }
                 };
-
                 wrapper.appendChild(mediaElement);
                 wrapper.appendChild(removeBtn);
                 mediaEditContainer.appendChild(wrapper);
@@ -2229,19 +1964,15 @@ function startUserMessageEdit(messageDiv) {
          const textPart = originalMessageContent.find(p => p.type === 'text');
          if (textPart) originalText = textPart.text;
     }
-    
     const editTextArea = document.createElement('textarea');
     editTextArea.className = 'edit-message-textarea';
     editTextArea.value = originalText;
     editTextArea.rows = 1;
-
     function adjustEditAreaHeight() {
         editTextArea.style.height = 'auto';
         editTextArea.style.height = (editTextArea.scrollHeight) + 'px';
     }
-
     editTextArea.addEventListener('input', adjustEditAreaHeight);
-
     const editActionsContainer = document.createElement('div');
     editActionsContainer.className = 'edit-actions-container';
     editActionsContainer.innerHTML = `
@@ -2252,16 +1983,13 @@ function startUserMessageEdit(messageDiv) {
             <i class="fas fa-redo"></i> Salvar e Gerar
         </button>
     `;
-
     editContainer.appendChild(editTextArea);
     editContainer.appendChild(editActionsContainer);
     contentDiv.parentNode.insertBefore(editContainer, contentDiv.nextSibling);
-    
     setTimeout(adjustEditAreaHeight, 0);
     editTextArea.focus();
     const end = editTextArea.value.length;
     editTextArea.setSelectionRange(end, end);
-
     editTextArea.addEventListener('keydown', (e) => {
         const isMobile = window.innerWidth <= 768;
         if (e.key === 'Escape') {
@@ -2272,40 +2000,31 @@ function startUserMessageEdit(messageDiv) {
             finishUserMessageEdit(messageDiv, true, true);
         }
     });
-
     editContainer.querySelector('.cancel-edit-btn').addEventListener('click', () => finishUserMessageEdit(messageDiv, false, false));
     editContainer.querySelector('.save-regenerate-btn').addEventListener('click', () => finishUserMessageEdit(messageDiv, true, true));
 }
-
 function finishUserMessageEdit(messageDiv, shouldSave, shouldRegenerate) {
     const editContainer = messageDiv.querySelector('.user-edit-container');
     if (!editContainer || !currentlyEditing.div) return;
-
     const newText = editContainer.querySelector('textarea').value.trim();
     const mediaItems = editContainer.querySelectorAll('.media-item.editing');
-
     const contentDiv = messageDiv.querySelector('.content-text');
     const actionsDiv = messageDiv.querySelector('.message-actions');
-    
     editContainer.remove();
     contentDiv.style.display = '';
     actionsDiv.style.display = '';
-
     if (!shouldSave) {
         currentlyEditing = { div: null, originalContent: null };
         return;
     }
-
     const messageId = messageDiv.dataset.messageId;
     const chatHistory = allChats[currentChatId].recentMessages;
     const messageIndex = chatHistory.findIndex(msg => msg.timestamp.toString() === messageId);
-
     if (messageIndex === -1) {
         console.error("Erro crítico: Não foi possível encontrar a mensagem para atualizar no histórico de dados.");
         currentlyEditing = { div: null, originalContent: null };
         return;
     }
-    
     const newContent = [];
     if (mediaItems.length > 0) {
         mediaItems.forEach(item => {
@@ -2315,32 +2034,24 @@ function finishUserMessageEdit(messageDiv, shouldSave, shouldRegenerate) {
             }
         });
     }
-
     if (newText) {
         newContent.push({ type: 'text', text: newText });
     }
-
     const originalTextContent = currentlyEditing.originalContent.find(p => p.type === 'text')?.text || '';
     const wasContentModified = JSON.stringify(currentlyEditing.originalContent) !== JSON.stringify(newContent);
-
     if (!wasContentModified) {
         currentlyEditing = { div: null, originalContent: null };
         return;
     }
-
     chatHistory[messageIndex].content = newContent;
     messageDiv.dataset.originalContent = newText;
-
     contentDiv.innerHTML = '';
     let contentHtml = "";
-    
     const mediaParts = newContent.filter(p => (p.type === 'image_url' || p.type === 'file_uri') && p.url);
     const textPart = newContent.find(p => p.type === 'text');
-
     if (mediaParts.length > 0) {
         let gridClass = `media-grid grid-${Math.min(mediaParts.length, 4)}`;
         contentHtml += `<div class="${gridClass}">`;
-        
         mediaParts.forEach((media, index) => {
             if (index >= 4) return;
             const isVideo = media.mime_type && media.mime_type.startsWith("video/");
@@ -2352,121 +2063,79 @@ function finishUserMessageEdit(messageDiv, shouldSave, shouldRegenerate) {
         });
         contentHtml += `</div>`;
     }
-
     if (textPart && textPart.text) {
         const sanitizedParsedContent = DOMPurify.sanitize(marked.parse(textPart.text));
         contentHtml += sanitizedParsedContent;
     }
-
     contentDiv.innerHTML = contentHtml;
-    
     saveChatsToPersistence();
     currentlyEditing = { div: null, originalContent: null };
-
     if (shouldRegenerate) {
         regenerateFromMessage(messageDiv);
     }
 }
-
-function showAppSettingsModal() {
-    if (!appSettingsModalOverlay || !systemPromptInput || !temperatureInput || !temperatureValueDisplay || !geminiApiKeyInput || !geminiApiKeyDisplay || !userNameInput) return;
-
-    const promptToDisplay = (localStorage.getItem(SYSTEM_PROMPT_STORAGE_KEY) === null && currentUserSystemPrompt === getDynamicSystemPrompt()) ?
-        getDynamicSystemPrompt() :
-        currentUserSystemPrompt;
-
-    systemPromptInput.value = promptToDisplay;
-    temperatureInput.value = currentTemperature.toFixed(1);
-    temperatureValueDisplay.textContent = `(${currentTemperature.toFixed(1)})`;
-    userNameInput.value = currentUserName;
-
-    if (currentApiProvider === "groq") {
-        geminiApiKeyInput.value = localStorage.getItem(GROQ_API_KEY_STORAGE) || "";
-        geminiApiKeyInput.placeholder = "Cole sua chave da API Groq (gsk_...)";
-    } else {
-        geminiApiKeyInput.value = localStorage.getItem(GEMINI_API_KEY_STORAGE) || "";
-        geminiApiKeyInput.placeholder = "Cole sua chave da API Google AI (AIza...)";
-    }
-
-    geminiApiKeyInput.style.display = "block";
-    geminiApiKeyDisplay.style.display = "none";
-    if (apiKeyToggleBtn) apiKeyToggleBtn.innerHTML = "<i class=\"fas fa-eye\"></i>";
-
-    settingsFeedback.textContent = "";
-    appSettingsModalOverlay.classList.add("active");
-    history.pushState({ settingsModalOpen: true }, "Configurações");
-}
-
 function hideAppSettingsModal() {
     if (appSettingsModalOverlay?.classList.contains("active")) {
         history.back();
     }
 }
-
+function showAppSettingsModal() {
+    if (!appSettingsModalOverlay || !systemPromptInput || !temperatureInput || !temperatureValueDisplay || !userNameInput) return;
+    const promptToDisplay = (localStorage.getItem(SYSTEM_PROMPT_STORAGE_KEY) === null && currentUserSystemPrompt === getDynamicSystemPrompt()) ? getDynamicSystemPrompt() : currentUserSystemPrompt;
+    systemPromptInput.value = promptToDisplay;
+    temperatureInput.value = currentTemperature.toFixed(1);
+    temperatureValueDisplay.textContent = `(${currentTemperature.toFixed(1)})`;
+    userNameInput.value = currentUserName;
+    if (currentApiProvider === "ollama") {
+        if (dynamicApiKeyContainer) dynamicApiKeyContainer.style.display = "none";
+    } else {
+        if (dynamicApiKeyContainer) dynamicApiKeyContainer.style.display = "block";
+        const currentKey = localStorage.getItem(getCurrentApiKeyStorageKey()) || "";
+        if (globalApiKeyInput) {
+            globalApiKeyInput.value = currentKey;
+            globalApiKeyInput.style.display = "block";
+            let providerName = currentApiProvider.charAt(0).toUpperCase() + currentApiProvider.slice(1);
+            if (currentApiProvider === "custom") providerName = "URL Customizada";
+            if (currentApiProvider === "grok") providerName = "xAI (Grok)";
+            if (dynamicApiKeyLabel) dynamicApiKeyLabel.textContent = `Chave API para ${providerName}:`;
+            globalApiKeyInput.placeholder = `Cole sua chave da API ${providerName}...`;
+        }
+        if (globalApiKeyDisplay) globalApiKeyDisplay.style.display = "none";
+        if (apiKeyToggleBtn) apiKeyToggleBtn.innerHTML = "<i class=\"fas fa-eye\"></i>";
+    }
+    settingsFeedback.textContent = "";
+    appSettingsModalOverlay.classList.add("active");
+    history.pushState({ settingsModalOpen: true }, "Configurações");
+}
 function handleSaveAppSettings() {
-    if (!systemPromptInput || !temperatureInput || !settingsFeedback || !geminiApiKeyInput || !userNameInput) return;
-
+    if (!systemPromptInput || !temperatureInput || !settingsFeedback || !userNameInput) return;
     const newPrompt = systemPromptInput.value;
     const newTemp = parseFloat(temperatureInput.value);
-    
-    const newApiKey = geminiApiKeyInput.value.replace(/\s/g, ''); 
     const newUserName = userNameInput.value.trim();
-    
-    let storageKey;
-    if (currentApiProvider === "groq") {
-        storageKey = GROQ_API_KEY_STORAGE;
-    } else {
-        storageKey = GEMINI_API_KEY_STORAGE;
-    }
-    
-    const oldApiKey = localStorage.getItem(storageKey) || "";
-
-    let apiKeyChanged = false;
-    if (newApiKey !== oldApiKey) {
-        const providerName = currentApiProvider === "groq" ? "Groq" : "Google AI";
-       
-        if (currentApiProvider === "groq" && newApiKey && !newApiKey.startsWith("gsk_")) {
-            alert("Atenção: Uma chave válida da Groq geralmente começa com 'gsk_'. Verifique se você copiou corretamente.");
-        }
-
-        const confirmationMessage = `Você tem certeza de que deseja alterar sua chave de API do ${providerName}?`;
-        const confirmed = confirm(confirmationMessage);
-
-        if (confirmed) {
-            if (newApiKey) {
-                localStorage.setItem(storageKey, newApiKey);
-            } else {
-                localStorage.removeItem(storageKey);
-            }
-            apiKeyChanged = true;
-        } else {
-            geminiApiKeyInput.value = oldApiKey;
-        }
-    }
-
     if (isNaN(newTemp) || newTemp < 0 || newTemp > 2.0) {
         settingsFeedback.textContent = "Temperatura inválida. Use um valor entre 0.0 e 2.0.";
         settingsFeedback.style.color = "#ff6b6b";
         return;
     }
-
+    if (currentApiProvider !== "ollama" && globalApiKeyInput) {
+        const keyToSave = globalApiKeyInput.value.trim();
+        if (keyToSave) {
+            localStorage.setItem(getCurrentApiKeyStorageKey(), keyToSave);
+        } else {
+            localStorage.removeItem(getCurrentApiKeyStorageKey()); 
+        }
+    }
     currentUserSystemPrompt = newPrompt;
     currentTemperature = newTemp;
     currentUserName = newUserName;
     saveAppSettingsToLocalStorage();
-
     settingsFeedback.textContent = "Configurações salvas!";
     settingsFeedback.style.color = "#4CAF50";
-
     setTimeout(() => {
         hideAppSettingsModal();
-        if (apiKeyChanged) {
-
-            getApiConfig().then(() => loadModels());
-        }
+        getApiConfig().then(() => loadModels());
     }, 1000);
 }
-
 function performSearch(query) {
     if (!searchResults) return;
     searchResults.innerHTML = "";
@@ -2477,7 +2146,6 @@ function performSearch(query) {
     }
     const results = [];
     const terms = searchTerm.split(" ").filter(t => t.length > 0);
-
     Object.values(allChats).forEach(chat => {
         const messagesToSearch = [...chat.recentMessages];
         if (chat.summarizedContext) {
@@ -2487,7 +2155,6 @@ function performSearch(query) {
                 timestamp: `summary_${chat.id}`
             });
         }
-
         messagesToSearch.forEach(msg => {
             let textContent = "";
             if (typeof msg.content === "string") {
@@ -2496,7 +2163,6 @@ function performSearch(query) {
                 const textPart = msg.content.find(p => p.type === "text");
                 if (textPart) textContent = textPart.text;
             }
-
             if (textContent && textContent.toLowerCase().includes(searchTerm)) {
                 results.push({
                     chatId: chat.id,
@@ -2507,13 +2173,11 @@ function performSearch(query) {
             }
         });
     });
-
     results.sort((a, b) => {
         const aTimestamp = String(a.messageId).startsWith('summary_') ? 0 : a.messageId;
         const bTimestamp = String(b.messageId).startsWith('summary_') ? 0 : b.messageId;
         return bTimestamp - aTimestamp;
     });
-
     if (results.length === 0) {
         searchResults.innerHTML = `<div class="search-info">Nenhum resultado para "${query}".</div>`;
     } else {
@@ -2531,27 +2195,19 @@ function performSearch(query) {
         });
     }
 }
-
 function highlightMessage(messageElement, searchTerm) {
     if (!messageElement || !searchTerm) return;
-
     const contentElement = messageElement.querySelector('.content-text');
     if (!contentElement) return;
-
     const originalHTML = contentElement.innerHTML;
     const escapedSearchTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`(${escapedSearchTerm})`, 'gi');
-    
     const newHTML = originalHTML.replace(regex, '<span class="search-highlight-active">$1</span>');
-    
     contentElement.innerHTML = newHTML;
-
     setTimeout(() => {
         contentElement.innerHTML = originalHTML;
     }, 3000);
 }
-
-
 function switchToChatAndHighlightMessage(chatId, messageId, searchTerm) {
     const alreadyInChat = currentChatId === chatId;
     switchToChat(chatId, false); 
@@ -2562,7 +2218,6 @@ function switchToChatAndHighlightMessage(chatId, messageId, searchTerm) {
         } else {
             messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
         }
-
         if (messageElement) {
             messageElement.scrollIntoView({
                 behavior: alreadyInChat ? 'smooth' : 'auto',
@@ -2574,39 +2229,33 @@ function switchToChatAndHighlightMessage(chatId, messageId, searchTerm) {
         }
     });
 }
-
 function handleMissingApiKey(isFirstTime = false) {
-    let providerName = "Google AI";
-    if (currentApiProvider === "groq") providerName = "Groq";
-
+    let providerName = currentApiProvider.charAt(0).toUpperCase() + currentApiProvider.slice(1);
+    if (currentApiProvider === "grok") providerName = "xAI";
     if (isFirstTime) {
-        alert(`Bem-vindo(a)! Para começar, por favor, configure sua chave de API do ${providerName} nas configurações.`);
+        alert(`Bem-vindo(a)! Para começar, por favor, configure sua chave de API da ${providerName} nas configurações.`);
     }
     showAppSettingsModal();
     const guide = document.getElementById('api-key-setup-guide');
     if (guide) {
         guide.style.display = 'block';
     }
-    if (geminiApiKeyInput) {
-        geminiApiKeyInput.focus();
+    if (globalApiKeyInput) {
+        globalApiKeyInput.focus();
     }
 }
-
 async function speakText(text, button) {
     if (currentAudio) {
         currentAudio.pause();
         currentAudio = null;
     }
-
     if (button === currentPlayingTtsBtn) {
         resetAllTtsButtons();
         currentPlayingTtsBtn = null;
         return;
     }
-
     resetAllTtsButtons();
     currentPlayingTtsBtn = button;
-
     const apiKey = getGeminiApiKey();
     if (!apiKey) {
         alert("Chave de API do Gemini/Google AI não encontrada para o serviço de voz. Por favor, configure-a.");
@@ -2614,21 +2263,17 @@ async function speakText(text, button) {
         currentPlayingTtsBtn = null;
         return;
     }
-
     button.innerHTML = "<i class=\"fas fa-spinner fa-spin\"></i>";
     button.disabled = true;
-
     try {
         const emojiRegex = /(?:[\u2700-\u27bf]|(?:\ud83c[\udde6-\uddff]){2}|[\ud800-\udbff][\udc00-\udfff]|[\u0023-\u0039]\ufe0f?\u20e3|\u3299|\u3297|\u303d|\u3030|\u24c2|\ud83c[\udd70-\udd71]|\ud83c[\udd7e-\udd7f]|\ud83c\udd8e|\ud83c[\udd91-\udd9a]|\ud83c[\ude01-\ude02]|\ud83c\ude1a|\ud83c\ude2f|\ud83c[\ude32-\ude3a]|\ud83c[\ude50-\ude51]|\u203c|\u2049|[\u25aa-\u25ab]|\u25b6|\u25c0|[\u25fb-\u25fe]|\u00a9|\u00ae|\u2122|\u2139|\ud83c\udc04|[\u2600-\u26FF]|\u2b05|\u2b06|\u2b07|\u2b1b|\u2b1c|\u2b50|\u2b55|\u231a|\u231b|\u2328|\u23cf|[\u23e9-\u23f3]|[\u23f8-\u23fa]|\ud83c\udccf|\u2934|\u2935|[\u2190-\u21ff])/g;
         const cleanText = text.replace(emojiRegex, "").trim();
-
         if (!cleanText) {
             alert("A mensagem contém apenas emojis e não pode ser lida.");
             resetAllTtsButtons();
             currentPlayingTtsBtn = null;
             return;
         }
-
         const response = await fetch(
             `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`,
             {
@@ -2640,35 +2285,28 @@ async function speakText(text, button) {
                     audioConfig: { audioEncoding: "MP3", speakingRate: 1.1, pitch: -3.0, volumeGainDb: 0.0, sampleRateHertz: 24000 }
                 }),
             });
-
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error.message || `Erro ${response.status}`);
         }
-
         const data = await response.json();
         const audioSrc = `data:audio/mp3;base64,${data.audioContent}`;
         currentAudio = new Audio(audioSrc);
-
         button.innerHTML = "<i class=\"fas fa-stop\"></i>";
         button.title = "Parar áudio";
         button.disabled = false;
-
         currentAudio.play();
-
         currentAudio.onended = () => {
             resetAllTtsButtons();
             currentAudio = null;
             currentPlayingTtsBtn = null;
         };
-
         currentAudio.onerror = () => {
             alert("Ocorreu um erro ao tentar reproduzir o áudio.");
             resetAllTtsButtons();
             currentAudio = null;
             currentPlayingTtsBtn = null;
         };
-
     } catch (error) {
         console.error("Erro na síntese de voz:", error);
         alert(`Não foi possível gerar o áudio: ${error.message}`);
@@ -2676,7 +2314,6 @@ async function speakText(text, button) {
         currentPlayingTtsBtn = null;
     }
 }
-
 function resetAllTtsButtons() {
     document.querySelectorAll(".tts-btn").forEach(btn => {
         btn.innerHTML = "<i class=\"fas fa-volume-up\"></i>";
@@ -2684,26 +2321,20 @@ function resetAllTtsButtons() {
         btn.title = "Ouvir mensagem";
     });
 }
-
 currentUserSystemPrompt = getDynamicSystemPrompt();
-
 function getDynamicSystemPrompt() {
     return PROMPT_BASE;
 }
-
 function getGeminiApiKey() {
     return localStorage.getItem(GEMINI_API_KEY_STORAGE)?.trim() || null;
 }
-
 function getCurrentTime() {
     const now = new Date();
     return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 }
-
 function generateChatId() {
     return "chat_" + Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
 }
-
 function formatBytes(bytes, decimals = 2) {
     if (!bytes || bytes === 0) return "";
     const k = 1024;
@@ -2712,7 +2343,6 @@ function formatBytes(bytes, decimals = 2) {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 }
-
 function copyTextToClipboard(text, button) {
     const textarea = document.createElement("textarea");
     textarea.value = text;
@@ -2732,25 +2362,21 @@ function copyTextToClipboard(text, button) {
     } catch (err) { console.error("Falha ao copiar:", err); }
     finally { document.body.removeChild(textarea); }
 }
-
 function showCopyFeedback(button, message = "Copiado!") {
     if (!button) return;
     const icon = button.querySelector("i");
     const span = button.querySelector("span");
     const originalIcon = icon?.className;
     const originalText = span?.textContent;
-
     button.classList.add("copied");
     if (icon && message === "Copiado!") icon.className = "fas fa-check";
     if (span) span.textContent = message;
-
     setTimeout(() => {
         button.classList.remove("copied");
         if (icon && originalIcon) icon.className = originalIcon;
         if (span && originalText) span.textContent = originalText;
     }, 1500);
 }
-
 function getMatchContext(text, term, maxLength = 80) {
     const index = text.toLowerCase().indexOf(term.toLowerCase());
     if (index === -1) return text.substring(0, maxLength);
@@ -2761,7 +2387,6 @@ function getMatchContext(text, term, maxLength = 80) {
     if (end < text.length) context = context + "...";
     return context;
 }
-
 function highlightTerms(text, terms) {
     if (!text || !terms || terms.length === 0) return text;
     let highlightedText = text;
@@ -2769,20 +2394,17 @@ function highlightTerms(text, terms) {
     highlightedText = highlightedText.replace(regex, "<mark class=\"search-highlight\">$1</mark>");
     return highlightedText;
 }
-
 function vibrateProcessing() {
     if (!navigator.vibrate) return;
     stopVibration();
     navigator.vibrate(30);
     vibrationInterval = setInterval(() => navigator.vibrate(30), 1500);
 }
-
 function vibrateToken() {
     if (!navigator.vibrate) return;
     tokenCounter++;
     if (tokenCounter % 2 === 0) { navigator.vibrate(3); }
 }
-
 function stopVibration() {
     if (vibrationInterval) {
         clearInterval(vibrationInterval);
@@ -2791,11 +2413,9 @@ function stopVibration() {
     if (navigator.vibrate) navigator.vibrate(0);
     tokenCounter = 0;
 }
-
 async function loadChatsFromStorageData() {
     const data = await loadChatsFromStorage();
     const sessionChatId = sessionStorage.getItem("session_active_chat_id");
-
     if (data && data.allChats) {
         allChats = data.allChats;
         for (const id in allChats) {
@@ -2804,19 +2424,15 @@ async function loadChatsFromStorageData() {
     } else {
         allChats = {};
     }
-
     initializeHistory(allChats, saveChatsToPersistence);
-
     if (sessionChatId && allChats[sessionChatId]) {
         currentChatId = sessionChatId;
         await saveChatsToPersistence();
         switchToChat(currentChatId);
         return;
     }
-
     const sortedChats = Object.values(allChats).sort((a, b) => b.timestamp - a.timestamp);
     const lastChat = sortedChats.length > 0 ? sortedChats[0] : null;
-
     if (lastChat && lastChat.recentMessages.length === 0 && !lastChat.summarizedContext && lastChat.title === "Nova Conversa...") {
         currentChatId = lastChat.id;
     } else {
@@ -2830,11 +2446,9 @@ async function loadChatsFromStorageData() {
         };
         currentChatId = newChatId;
     }
-
     await saveChatsToPersistence();
     switchToChat(currentChatId);
 }
-
 async function saveChatsToPersistence() {
     try {
         const validChats = {};
@@ -2849,37 +2463,29 @@ async function saveChatsToPersistence() {
                 };
             }
         }
-
         const dataToSave = {
             currentChatId: currentChatId,
             allChats: validChats
         };
-
         await saveChatsToStorage(dataToSave);
-
         if (currentChatId) {
             localStorage.setItem("last_active_chat_id", currentChatId);
         }
-        
         if (apiSourceInput && apiSourceInput.value) {
             localStorage.setItem("api_source_preference", apiSourceInput.value);
         }
-        
         if (modelSelect && modelSelect.value) {
             localStorage.setItem(`${currentApiProvider}_selected_model`, modelSelect.value);
         }
-
     } catch (e) {
         console.error("Erro ao salvar chats na persistência:", e);
     }
 }
-
 function saveAppSettingsToLocalStorage() {
     localStorage.setItem(SYSTEM_PROMPT_STORAGE_KEY, currentUserSystemPrompt);
     localStorage.setItem(TEMPERATURE_STORAGE_KEY, currentTemperature.toString());
     localStorage.setItem(USER_NAME_STORAGE_KEY, currentUserName);
 }
-
 function loadAppSettingsFromLocalStorage() {
     const savedPrompt = localStorage.getItem(SYSTEM_PROMPT_STORAGE_KEY);
     if (savedPrompt) {
@@ -2895,82 +2501,100 @@ function loadAppSettingsFromLocalStorage() {
     } else {
         currentTemperature = DEFAULT_TEMPERATURE;
     }
-
     const savedUserName = localStorage.getItem(USER_NAME_STORAGE_KEY);
     if (savedUserName) {
         currentUserName = savedUserName;
+        if (userNameInput) userNameInput.value = savedUserName;
     }
 }
-
+function getCurrentApiKeyStorageKey() {
+    if (currentApiProvider === "custom") {
+        const url = apiSourceInput ? apiSourceInput.value.trim() : "";
+        return `2b_chat_custom_key_${btoa(url)}`;
+    }
+    return `2b_chat_${currentApiProvider}_api_key`;
+}
 async function loadModels() {
     if (!modelSelect) return;
     const apiConfig = await getApiConfig();
+    const manualModelContainer = document.getElementById("manual-model-container");
+    const manualModelInput = document.getElementById("manual-model-input");
+    const setManualMode = (isManual, placeholder = "Digite o nome do modelo...") => {
+        if (isManual) {
+            modelSelect.style.display = "none";
+            if (manualModelContainer) {
+                manualModelContainer.style.display = "block";
+                manualModelContainer.classList.add("active");
+            }
+            if (manualModelInput) manualModelInput.placeholder = placeholder;
+        } else {
+            modelSelect.style.display = "block";
+            if (manualModelContainer) {
+                manualModelContainer.style.display = "none";
+                manualModelContainer.classList.remove("active");
+            }
+        }
+    };
+    setManualMode(false);
     modelSelect.innerHTML = "<option value=\"\" disabled selected>Carregando...</option>";
-    
     if (apiConfig.error) {
-        modelSelect.innerHTML = `<option value=\"\" disabled selected>Erro: ${apiConfig.error}</option>`;
+        setManualMode(true, "Configure a API primeiro...");
         return;
     }
-
+    const addManualOption = () => {
+        const option = document.createElement("option");
+        option.value = "manual";
+        option.textContent = "✎ Digitar nome do modelo...";
+        modelSelect.appendChild(option);
+    };
+    modelSelect.onchange = () => {
+        if (modelSelect.value === "manual") {
+            setManualMode(true);
+            if (manualModelInput) manualModelInput.focus();
+        } else {
+            localStorage.setItem(`${currentApiProvider}_selected_model`, modelSelect.value);
+        }
+    };
     if (apiConfig.provider === "ollama") {
         try {
             const response = await fetch(`${apiConfig.url}/api/tags`);
-            if (!response.ok) {
-                let errorText = response.statusText;
-                try { const d = await response.json(); errorText = d.error || errorText; } catch (e) { }
-                throw new Error(`Erro ${response.status}: ${errorText}`);
-            }
+            if (!response.ok) throw new Error();
             const data = await response.json();
             modelSelect.innerHTML = "";
-
             if (data.models?.length > 0) {
                 const savedModel = localStorage.getItem("ollama_selected_model");
                 let foundSaved = false;
-
                 data.models.sort((a, b) => a.name.localeCompare(b.name)).forEach(model => {
                     const option = document.createElement("option");
                     option.value = model.name;
-                    const quant = model.details?.quantization_level || "N/A";
-                    const size = formatBytes(model.size);
-                    option.textContent = `${model.name} (${quant}) - ${size}`;
+                    option.textContent = `${model.name} (${model.details?.quantization_level || "N/A"}) - ${formatBytes(model.size)}`;
                     modelSelect.appendChild(option);
-                    if (savedModel === model.name) {
-                        option.selected = true;
-                        foundSaved = true;
-                    }
+                    if (savedModel === model.name) { option.selected = true; foundSaved = true; }
                 });
-
-                if (!foundSaved && modelSelect.options.length > 0) {
-                    modelSelect.options[0].selected = true;
-                }
+                if (!foundSaved) modelSelect.options[0].selected = true;
+                setManualMode(false);
             } else {
-                modelSelect.innerHTML = "<option value=\"\" disabled selected>Nenhum modelo Ollama</option>";
+                setManualMode(true, "Nenhum modelo Ollama encontrado...");
             }
         } catch (error) {
-            modelSelect.innerHTML = `<option value=\"\" disabled selected>Falha Ollama (${error.message.substring(0, 30)}...)</option>`;
+            setManualMode(true, "Falha ao conectar no Ollama...");
         }
-    } else if (apiConfig.provider === "gemini") { 
+    } else if (apiConfig.provider === "gemini") {
         if (!apiConfig.apiKey) {
-            modelSelect.innerHTML = `<option value=\"\" disabled selected>Chave API Gemini pendente</option>`;
+            setManualMode(true, "Chave API Gemini pendente...");
             return;
         }
         try {
             const response = await fetch(`${apiConfig.url}/models?key=${apiConfig.apiKey}`);
-            if (!response.ok) {
-                let errorText = response.statusText;
-                try { const d = await response.json(); errorText = d.error?.message || d.error || errorText; } catch (e) { }
-                throw new Error(`Erro ${response.status}: ${errorText}`);
-            }
+            if (!response.ok) throw new Error();
             const jsonData = await response.json();
             modelSelect.innerHTML = "";
             if (jsonData.models && jsonData.models.length > 0) {
                 const savedModel = localStorage.getItem("gemini_selected_model");
-                let foundToSelect = false;
-
+                let foundSaved = false;
                 const sortedModels = jsonData.models
                     .filter(model => model.supportedGenerationMethods.includes("generateContent"))
                     .sort((a, b) => a.displayName.localeCompare(b.displayName));
-
                 sortedModels.forEach(model => {
                     const option = document.createElement("option");
                     option.value = model.name;
@@ -2978,72 +2602,65 @@ async function loadModels() {
                     modelSelect.appendChild(option);
                     if (savedModel === model.name) {
                         option.selected = true;
-                        foundToSelect = true;
-                    }
-                });
-
-                if (!foundToSelect) {
-                    const flashOpt = Array.from(modelSelect.options).find(opt => opt.value.includes("gemini-2.5-flash") || opt.value.includes("gegemini-3-flash-preview"));
-                    if (flashOpt) {
-                        flashOpt.selected = true;
-                    } else if (modelSelect.options.length > 0) {
-                        modelSelect.options[0].selected = true;
-                    }
-                }
-            } else { modelSelect.innerHTML = "<option value=\"\" disabled selected>Nenhum modelo Gemini encontrado</option>"; }
-        } catch (error) { modelSelect.innerHTML = `<option value=\"\" disabled selected>Falha Gemini Models (${error.message.substring(0, 30)}...)</option>`; }
-    } else if (apiConfig.provider === "groq") {
-        if (!apiConfig.apiKey) {
-            modelSelect.innerHTML = `<option value=\"\" disabled selected>Chave API Groq pendente</option>`;
-            return;
-        }
-        try {
-            const response = await fetch(`${apiConfig.url}/models`, {
-                method: "GET",
-                headers: { "Authorization": `Bearer ${apiConfig.apiKey}` }
-            });
-            if (!response.ok) {
-                let errText = response.statusText;
-                try {
-                    const errJson = await response.json();
-                    if (errJson.error && errJson.error.message) errText = errJson.error.message;
-                } catch(e) {}
-                throw new Error(`Erro ${response.status}: ${errText}`);
-            }
-            const jsonData = await response.json();
-            modelSelect.innerHTML = "";
-            if (jsonData.data && jsonData.data.length > 0) {
-                const savedModel = localStorage.getItem("groq_selected_model");
-                let foundSaved = false;
-                const sortedModels = jsonData.data.filter(m => !m.id.includes('whisper')).sort((a, b) => a.id.localeCompare(b.id));
-                sortedModels.forEach(model => {
-                    const option = document.createElement("option");
-                    option.value = model.id;
-                    option.textContent = model.id;
-                    modelSelect.appendChild(option);
-                    if (savedModel === model.id) {
-                        option.selected = true;
                         foundSaved = true;
                     }
                 });
-                if (!foundSaved && modelSelect.options.length > 0) {
-                    const defaultModel = Array.from(modelSelect.options).find(opt => opt.value.includes('llama-3.3') || opt.value.includes('mixtral'));
-                    if (defaultModel) defaultModel.selected = true;
-                    else modelSelect.options[0].selected = true;
+                if (!foundSaved) {
+                    const targets = ["2.5-flash", "2.0-flash", "1.5-flash", "flash", "pro"];
+                    for (const target of targets) {
+                        const opt = Array.from(modelSelect.options).find(o => o.value.toLowerCase().includes(target) || o.textContent.toLowerCase().includes(target));
+                        if (opt) { opt.selected = true; foundSaved = true; break; }
+                    }
                 }
+                if (!foundSaved && modelSelect.options.length > 0) modelSelect.options[0].selected = true;
+                setManualMode(false);
             } else {
-                modelSelect.innerHTML = "<option value=\"\" disabled selected>Nenhum modelo Groq encontrado</option>";
+                setManualMode(true, "Nenhum modelo Gemini encontrado...");
             }
         } catch (error) {
-            modelSelect.innerHTML = `<option value=\"\" disabled selected>Erro Groq</option>`;
+            setManualMode(true, "Falha na API Gemini...");
+        }
+    } else {
+        const providerName = apiConfig.provider;
+        try {
+            const response = await fetch(`${apiConfig.url}/models`, {
+                method: "GET",
+                headers: apiConfig.apiKey ? { "Authorization": `Bearer ${apiConfig.apiKey}` } : {}
+            });
+            if (!response.ok) throw new Error();
+            const jsonData = await response.json();
+            modelSelect.innerHTML = "";
+            const models = jsonData.data || jsonData.models || [];
+            if (models.length > 0) {
+                const savedModel = localStorage.getItem(`${providerName}_selected_model`);
+                let foundSaved = false;
+                models.forEach(model => {
+                    const id = model.id || model.name;
+                    if (id.includes('whisper') || id.includes('embed')) return;
+                    const option = document.createElement("option");
+                    option.value = id;
+                    option.textContent = id;
+                    modelSelect.appendChild(option);
+                    if (savedModel === id) { option.selected = true; foundSaved = true; }
+                });
+                addManualOption();
+                if (savedModel === "manual") {
+                    setManualMode(true);
+                } else {
+                    if (!foundSaved && modelSelect.options.length > 0) modelSelect.options[0].selected = true;
+                    setManualMode(false);
+                }
+            } else {
+                setManualMode(true, "Nenhum modelo encontrado...");
+            }
+        } catch (error) {
+            setManualMode(true, "Falha ao listar modelos...");
         }
     }
-
-    if (modelSelect.value) {
+    if (modelSelect.style.display !== "none" && modelSelect.value) {
         localStorage.setItem(`${currentApiProvider}_selected_model`, modelSelect.value);
     }
 }
-
 function exportChatHistory(chatId) {
     if (!allChats || !allChats[chatId]) return;
     const chat = allChats[chatId];
@@ -3068,7 +2685,6 @@ function exportChatHistory(chatId) {
         }
         content += `${prefix} (${timestamp}):\n${messageText}\n\n-----------------\n\n`;
     });
-
     try {
         if (window.Website2APK && typeof window.Website2APK.getBase64FromBlobData === 'function') {
             const mimeType = "text/plain;charset=utf-8";
@@ -3081,7 +2697,6 @@ function exportChatHistory(chatId) {
     } catch (e) {
         console.error("Erro ao tentar exportar via interface do WebView:", e);
     }
-
     console.log("Interface 'Website2APK' não encontrada. Usando método de download padrão.");
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -3094,12 +2709,9 @@ function exportChatHistory(chatId) {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 }
-
-
 window.handlePastedImageFromNative = function(mimeType, base64String) {
     if (mimeType && base64String) {
         const fullBase64Url = `data:${mimeType};base64,${base64String}`;
-        
         const byteCharacters = atob(base64String);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -3107,22 +2719,16 @@ window.handlePastedImageFromNative = function(mimeType, base64String) {
         }
         const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: mimeType });
-        
         const file = new File([blob], "pasted_image.png", { type: mimeType });
-        
         processFiles([file]);
     }
 };
-
 function handlePaste(event) {
     if (currentApiProvider !== "gemini") return;
     const items = (event.clipboardData || event.originalEvent.clipboardData)?.items;
     if (!items) return;
-
     const pastedFiles = [];
-
     for (let i = 0; i < items.length; i++) {
-      
         if (items[i].type.indexOf("image") !== -1 || items[i].type.indexOf("video") !== -1) {
             const file = items[i].getAsFile();
             if (file) {
@@ -3130,15 +2736,12 @@ function handlePaste(event) {
             }
         }
     }
-
     if (pastedFiles.length > 0) {
         event.preventDefault();
         clearImagePreview(); 
-        
         processFiles(pastedFiles);
     }
 }
-
 window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
     deferredPrompt = e;
@@ -3147,7 +2750,6 @@ window.addEventListener("beforeinstallprompt", (e) => {
         installPwaBtn.style.display = "block";
     }
 });
-
 if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
         navigator.serviceWorker.register("sw.js").then(registration => {
@@ -3157,7 +2759,6 @@ if ("serviceWorker" in navigator) {
         });
     });
 }
-
 window.switchToChatFromNotification = function(chatId) {
     if (chatId && allChats[chatId]) {
         console.log(`Recebido clique na notificação para o chat: ${chatId}`);
@@ -3166,5 +2767,4 @@ window.switchToChatFromNotification = function(chatId) {
         console.error(`Chat com ID ${chatId} não encontrado via notificação.`);
     }
 };
-
 document.addEventListener("DOMContentLoaded", initializeApp);
