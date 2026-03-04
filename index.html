@@ -10,7 +10,7 @@
                font-src 'self' https://cdnjs.cloudflare.com;
                connect-src 'self' *; ">
                
-  <meta charset="utf-8"/>
+  <meta charset="UTF-8"/>
   <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
   <title>Chat 2B</title>
   <link href="manifest.json" rel="manifest"/>
@@ -22,6 +22,43 @@
       #app-settings-modal h2 {
           color: white;
       }
+      .top-bar { position: relative; }
+      .api-history-dropdown {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          width: 100%;
+          background: var(--sidebar-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 0 0 8px 8px;
+          box-shadow: 0 4px 12px var(--shadow-color);
+          z-index: 99999;
+          display: none;
+          max-height: 200px;
+          overflow-y: auto;
+      }
+      .history-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px 12px;
+          cursor: pointer;
+          transition: background 0.2s;
+          border-bottom: 1px solid var(--border-color);
+      }
+      .history-item:last-child { border-bottom: none; }
+      .history-item:hover { background: var(--hover-bg); }
+      .history-item span { flex: 1; font-size: 0.85rem; color: var(--text-color); }
+      .history-item button {
+          background: none;
+          border: none;
+          color: var(--text-light);
+          font-size: 1.2rem;
+          cursor: pointer;
+          padding: 0 5px;
+          line-height: 1;
+      }
+      .history-item button:hover { color: #ff4444; }
       #api-key-setup-guide {
           display: none; 
           background: rgba(0,0,0,0.2); 
@@ -99,7 +136,9 @@
       <button class="mobile-menu-btn top-bar-action-btn" id="mobile-menu-btn" title="Menu">
         <i class="fas fa-bars"></i>
       </button>
-      <input class="server-url-input" id="api-source-input" placeholder="Provedor (gemini, openai, groq...) ou URL" type="text" value="Gemini"/>
+      <div class="api-source-wrapper" style="flex: 1; position: relative; display: flex; flex-direction: column;">
+          <input class="server-url-input" id="api-source-input" placeholder="Provedor (gemini, openai, groq...) ou URL" type="text" value="Gemini" style="width: 100%;"/>
+      </div>
       
       <div class="model-select-wrapper" style="flex: 1; margin: 0 10px; position: relative; display: flex; flex-direction: column;">
           <select class="model-selector" id="model-select" style="width: 100%; margin: 0;">

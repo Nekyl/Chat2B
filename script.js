@@ -102,6 +102,12 @@ async function initializeApp() {
     setupImagePreview();
     createScrollToBottomButton();
     
+    const lastApi = localStorage.getItem("2b_chat_last_api_source");
+    if (lastApi && apiSourceInput) {
+        apiSourceInput.value = lastApi;
+    }
+    setupApiSourceHistory();
+    
     await loadModels();
     handleResizeLayout();
     adjustTextareaHeight();
@@ -117,6 +123,14 @@ async function initializeApp() {
         setTimeout(() => handleMissingApiKey(false), 500);
     }
     onWebAppReady();
+    const defaults = ["Gemini", "Grok", "Groq"];
+    let history = JSON.parse(localStorage.getItem("2b_chat_api_history") || "[]");
+    defaults.forEach(def => {
+        if (!history.some(item => item.url.toLowerCase() === def.toLowerCase())) {
+            history.unshift({ url: def, lastAccess: Date.now() - 100000 });
+        }
+    });
+    localStorage.setItem("2b_chat_api_history", JSON.stringify(history.slice(0, 10)));
 }
 
 function setupEventListeners() {
@@ -381,7 +395,7 @@ function setupEventListeners() {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(async () => {
                 await getApiConfig();
-                loadModels();
+                await loadModels();
                 saveChatsToPersistence();
                 updateSendButtonState();
                 checkNetworkStatus();
@@ -933,6 +947,60 @@ async function getApiConfig() {
     const sourceLower = sourceValue.toLowerCase();
     iniciarRotacaoPlaceholders();
 
+    if (sourceValue) {
+        localStorage.setItem("2b_chat_last_api_source", sourceValue);
+        
+        let isValid = false;
+        try {
+          
+            if (["gemini", "openai", "groq", "grok", "xai"].includes(sourceLower)) {
+                isValid = true;
+            } 
+            
+            else if (sourceLower.startsWith("http") || sourceLower.includes("localhost") || sourceLower.match(/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
+                
+                let testBaseUrl = sourceValue.startsWith("http") ? sourceValue : `http://${sourceValue}`;
+                let testUrl;
+                
+                if (sourceLower.endsWith("/v1") || sourceLower.includes("/v1/")) {
+                    testUrl = `${testBaseUrl.endsWith("/") ? testBaseUrl.slice(0, -1) : testBaseUrl}/models`;  
+                } else {
+                    testUrl = `${testBaseUrl.endsWith("/") ? testBaseUrl.slice(0, -1) : testBaseUrl}/api/tags`;
+                }
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000);
+                
+                const res = await fetch(testUrl, { 
+                    method: "GET", 
+                    signal: controller.signal 
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (res.status >= 200 && res.status < 500) {
+                    isValid = true;
+                }
+            }
+        } catch (e) {
+            console.log(`API source "${sourceValue}" ainda não conectou: ${e.message}`);
+        }
+
+        if (isValid) {
+            let history = JSON.parse(localStorage.getItem("2b_chat_api_history") || "[]");
+            
+            let existingItem = history.find(item => item.url === sourceValue);
+            let savedName = existingItem ? existingItem.name : "";
+
+            history = history.filter(item => item.url !== sourceValue);
+            history.unshift({ url: sourceValue, name: savedName, lastAccess: Date.now() });
+            localStorage.setItem("2b_chat_api_history", JSON.stringify(history.slice(0, 10)));
+            
+            if (typeof renderHistory === 'function') renderHistory();
+        }
+    }
+
+
     if (sourceLower === "gemini") {
         currentApiProvider = "gemini";
         if (attachImageBtn) attachImageBtn.style.display = "block";
@@ -1197,7 +1265,9 @@ async function sendMessage() {
     adjustTextareaHeight();
     updateSendButtonState();
 
-    scrollToBottom("auto"); 
+    setTimeout(() => {
+        scrollToBottom("auto");
+    }, 0); 
 
     fetchBotResponse();
 }
@@ -1210,6 +1280,9 @@ async function fetchBotResponse() {
     }
 
     typingAnimation.style.display = "flex";
+    setTimeout(() => {
+        scrollToBottom("smooth");
+    }, 50);
     messageInput.disabled = true;
     updateButtonToStop();
     isBotStreaming = true;
@@ -3067,6 +3140,19 @@ async function loadModels() {
             } else {
                 setManualMode(true, "Nenhum modelo Gemini encontrado...");
             }
+            
+            const currentSource = apiSourceInput?.value?.trim();
+            if (currentSource && currentSource !== "") {
+                let history = JSON.parse(localStorage.getItem("2b_chat_api_history") || "[]");
+                
+                history = history.filter(item => item.url !== currentSource);
+                
+                history.unshift({ url: currentSource, lastAccess: Date.now() });
+                
+                localStorage.setItem("2b_chat_api_history", JSON.stringify(history.slice(0, 10)));
+                
+                console.log(`Fonte válida salva no histórico: ${currentSource}`);
+            }
         } catch (error) {
             setManualMode(true, "Falha na API Gemini...");
         }
@@ -3236,3 +3322,216 @@ window.switchToChatFromNotification = function(chatId) {
 };
 
 document.addEventListener("DOMContentLoaded", initializeApp);
+
+function setupApiSourceHistory() {
+    if (!apiSourceInput) return;
+
+    const historyContainer = document.createElement("div");
+    historyContainer.id = "api-history-dropdown";
+    historyContainer.className = "api-history-dropdown";
+    apiSourceInput.parentNode.appendChild(historyContainer);
+
+    let isDropdownOpen = false;
+
+    const getHistory = () => JSON.parse(localStorage.getItem("2b_chat_api_history") || "[]");
+    
+    const saveToHistory = (url, name = "") => {
+        if (!url || url.trim() === "") return;
+        let history = getHistory();
+        let existingItem = history.find(item => item.url === url);
+        let finalName = name !== "" ? name : (existingItem ? existingItem.name : "");
+        history = history.filter(item => item.url !== url);
+        history.unshift({ url, name: finalName, lastAccess: Date.now() });
+        localStorage.setItem("2b_chat_api_history", JSON.stringify(history.slice(0, 10)));
+    };
+
+    const removeFromHistory = (url) => {
+        let history = getHistory();
+        history = history.filter(item => item.url !== url);
+        localStorage.setItem("2b_chat_api_history", JSON.stringify(history));
+        renderHistory();
+    };
+
+    window.renderHistory = () => {
+        const history = getHistory();
+        if (history.length === 0) {
+            historyContainer.style.display = "none";
+            return;
+        }
+
+        historyContainer.innerHTML = "";
+        history.forEach(item => {
+            const row = document.createElement("div");
+            row.className = "history-item";
+            
+            const contentDiv = document.createElement("div");
+            contentDiv.className = "history-content";
+            
+            if (item.name && item.name.trim() !== "") {
+                contentDiv.innerHTML = `<span class="history-display-name">${item.name}</span>`;
+            } else {
+                contentDiv.innerHTML = `<span class="history-display-url">${item.url}</span>`;
+            }
+
+            contentDiv.onclick = () => {
+                isDropdownOpen = false;
+                apiSourceInput.value = item.url;
+                apiSourceInput.blur();
+                historyContainer.style.display = "none";
+                apiSourceInput.dispatchEvent(new Event("input"));
+            };
+
+            let pressTimer;
+            let touchX = 0, touchY = 0;
+
+            const startPress = (e) => {
+                if (e.type === 'touchstart' && e.touches.length > 1) return;
+                if (e.touches) {
+                    touchX = e.touches[0].clientX;
+                    touchY = e.touches[0].clientY;
+                }
+                pressTimer = setTimeout(() => {
+                    showContextMenu(touchX, touchY, item);
+                }, 500); 
+            };
+            const cancelPress = () => clearTimeout(pressTimer);
+
+            contentDiv.addEventListener('touchstart', startPress, {passive: true});
+            contentDiv.addEventListener('touchend', cancelPress);
+            contentDiv.addEventListener('touchmove', cancelPress);
+            contentDiv.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                cancelPress();
+                showContextMenu(e.clientX, e.clientY, item);
+            });
+
+            const removeBtn = document.createElement("button");
+            removeBtn.className = "history-remove-btn";
+            removeBtn.innerHTML = "&times;";
+            removeBtn.onclick = (e) => {
+                e.stopPropagation();
+                removeFromHistory(item.url);
+            };
+
+            row.appendChild(contentDiv);
+            row.appendChild(removeBtn);
+            historyContainer.appendChild(row);
+        });
+        
+        if (isDropdownOpen) {
+            historyContainer.style.display = "block";
+        } else {
+            historyContainer.style.display = "none";
+        }
+    };
+
+    function showContextMenu(x, y, item) {
+        const oldMenu = document.getElementById('history-context-menu');
+        if (oldMenu) oldMenu.remove();
+
+        const menu = document.createElement('div');
+        menu.id = 'history-context-menu';
+        menu.className = 'history-context-menu';
+        menu.style.left = `${x}px`;
+        menu.style.top = `${y}px`;
+        menu.innerHTML = `
+            <button class="ctx-menu-btn" id="ctx-btn-rename">
+                <i class="fas fa-pencil-alt"></i> Renomear
+            </button>
+        `;
+
+        document.body.appendChild(menu);
+
+        document.getElementById('ctx-btn-rename').onclick = (e) => {
+            e.stopPropagation();
+            menu.remove();
+            openFloatingEditModal(item);
+            isDropdownOpen = false;
+            historyContainer.style.display = "none";
+        };
+
+        setTimeout(() => {
+            const closeMenu = (e) => {
+                if (!menu.contains(e.target)) {
+                    menu.remove();
+                    document.removeEventListener('click', closeMenu);
+                    document.removeEventListener('touchstart', closeMenu);
+                }
+            };
+            document.addEventListener('click', closeMenu);
+            document.addEventListener('touchstart', closeMenu);
+        }, 50);
+    }
+
+    function openFloatingEditModal(item) {
+        const oldOverlay = document.getElementById('history-global-edit-overlay');
+        if (oldOverlay) oldOverlay.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'history-global-edit-overlay';
+        overlay.className = 'history-global-edit-overlay';
+
+        const currentValue = item.name || item.url;
+
+        overlay.innerHTML = `
+            <div class="history-global-modal">
+                <div class="history-modal-title">Renomear Conexão</div>
+                <div class="history-modal-subtitle">${item.url}</div>
+                <input type="text" class="history-global-input" id="history-floating-input" value="">
+                <div class="history-modal-actions">
+                    <button class="btn-cancel" id="history-modal-cancel">Cancelar</button>
+                    <button class="btn-save" id="history-modal-save">Salvar</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        const input = document.getElementById('history-floating-input');
+        input.value = currentValue;
+        
+        setTimeout(() => {
+            input.focus();
+            input.select();
+        }, 50);
+
+        const fecharModal = () => {
+            overlay.classList.add('closing');
+            setTimeout(() => overlay.remove(), 250);
+        };
+
+        const salvar = () => {
+            const newVal = input.value.trim();
+            const finalName = (newVal === item.url || newVal === "") ? "" : newVal;
+            saveToHistory(item.url, finalName);
+            fecharModal();
+            renderHistory();
+        };
+
+        document.getElementById('history-modal-save').onclick = salvar;
+        document.getElementById('history-modal-cancel').onclick = fecharModal;
+
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); salvar(); }
+            if (e.key === 'Escape') { e.preventDefault(); fecharModal(); }
+        };
+
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                salvar();
+            }
+        };
+    }
+
+    apiSourceInput.addEventListener("focus", () => {
+        isDropdownOpen = true;
+        renderHistory();
+    });
+    
+    document.addEventListener("click", (e) => {
+        if (!apiSourceInput.contains(e.target) && !historyContainer.contains(e.target)) {
+            isDropdownOpen = false;
+            historyContainer.style.display = "none";
+        }
+    });
+}

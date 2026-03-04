@@ -1968,6 +1968,7 @@ body {
     max-width: 90%;
     transition: transform 0.4s ease, opacity 0.3s ease;
     opacity: 0;
+    pointer-events: none;
 }
 
 .connection-toast:not(.hidden) {
@@ -2709,4 +2710,227 @@ video::-webkit-media-controls {
 .cropper-modal {
     background-color: var(--bg-color) !important;
     opacity: 0.8 !important;
+}
+
+.history-context-menu {
+    position: fixed;
+    background-color: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    z-index: 100000;
+    overflow: hidden;
+    min-width: 150px;
+    animation: fadeInMenu 0.15s ease-out;
+    transform: translate(-10px, -10px); 
+}
+
+.ctx-menu-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 16px;
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-size: 0.95rem;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 0.2s;
+}
+
+.ctx-menu-btn:hover {
+    background-color: var(--hover-bg);
+}
+
+.ctx-menu-btn i {
+    color: var(--text-light);
+}
+
+@keyframes fadeInMenu {
+    from { opacity: 0; transform: translate(-10px, -20px) scale(0.95); }
+    to { opacity: 1; transform: translate(-10px, -10px) scale(1); }
+}
+
+
+.api-history-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background-color: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: 0 4px 15px var(--shadow-color);
+    z-index: 9999;
+    max-height: 350px;
+    overflow-y: auto;
+    margin-top: 5px;
+}
+
+.history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--sidebar-bg);
+    transition: background-color 0.2s ease;
+}
+
+.history-item:last-child {
+    border-bottom: none;
+}
+
+.history-item:hover {
+    background-color: var(--hover-bg);
+}
+
+.history-content {
+    flex: 1;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    padding-right: 15px;
+}
+
+.history-display-name {
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--text-color);
+    display: block;
+}
+
+.history-display-url {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    line-height: 1.4;
+    word-break: break-all;
+    display: block;
+}
+
+.history-remove-btn {
+    background: none;
+    border: none;
+    color: #ff6b6b;
+    font-size: 22px;
+    cursor: pointer;
+    padding: 0 5px;
+    line-height: 1;
+    transition: transform 0.2s;
+}
+
+.history-remove-btn:hover {
+    color: #e53935;
+    transform: scale(1.1);
+}
+
+.history-global-edit-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(5px);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 1;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.history-global-edit-overlay.closing {
+    animation: fadeOut 0.2s ease-in forwards;
+}
+
+.history-global-modal {
+    background-color: var(--bg-color);
+    width: 100%;
+    max-width: 380px;
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.history-modal-title {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+.history-modal-subtitle {
+    font-size: 0.8rem;
+    color: var(--text-light);
+    word-break: break-all;
+    margin-bottom: 8px;
+}
+
+.history-global-input {
+    width: 100%;
+    background-color: var(--input-bg);
+    border: 2px solid var(--accent-color);
+    color: var(--text-color);
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 1rem;
+    outline: none;
+}
+
+.history-global-input:focus {
+    box-shadow: 0 0 0 3px rgba(128, 128, 128, 0.2);
+}
+
+.history-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.history-modal-actions button {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.95em;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.history-modal-actions .btn-cancel {
+    background: transparent;
+    color: var(--text-light);
+}
+
+.history-modal-actions .btn-cancel:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-color);
+}
+
+.history-modal-actions .btn-save {
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+}
+
+.history-modal-actions .btn-save:hover {
+    opacity: 0.85;
+    transform: translateY(-1px);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.95); }
 }
