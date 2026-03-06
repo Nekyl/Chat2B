@@ -78,7 +78,7 @@ let currentPlayingTtsBtn = null;
 let currentlyEditing = { div: null, originalContent: '' };
 let deferredPrompt;
 
-const DEFAULT_OLLAMA_URL = "http://localhost:11434";
+const DEFAULT_LLM_URL = "http://localhost:11434";
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 const SYSTEM_PROMPT_STORAGE_KEY = "2b_chat_user_system_prompt";
 const TEMPERATURE_STORAGE_KEY = "2b_chat_user_temperature";
@@ -252,7 +252,8 @@ function setupEventListeners() {
             e.stopPropagation();
             const messageDiv = copyMsgBtn.closest('.message');
             if (messageDiv?.dataset.originalContent) {
-                copyTextToClipboard(messageDiv.dataset.originalContent, copyMsgBtn);
+                
+                copyTextToClipboard(cleanTextForUI(messageDiv.dataset.originalContent), copyMsgBtn);
             }
             return;
         }
@@ -262,6 +263,7 @@ function setupEventListeners() {
             e.stopPropagation();
             const messageDiv = ttsBtn.closest('.message');
             if (messageDiv?.dataset.originalContent) {
+                
                 const textToSpeak = messageDiv.dataset.originalContent.replace(/```[\s\S]*?```/g, 'Bloco de código.');
                 speakText(textToSpeak, ttsBtn);
             }
@@ -407,7 +409,7 @@ function setupEventListeners() {
         modelSelect.addEventListener("change", async () => {
             if (modelSelect.value) {
                 localStorage.setItem(`${currentApiProvider}_selected_model`, modelSelect.value);
-                if (currentApiProvider === "ollama") {
+                if (currentApiProvider === "llm") {
                     const apiConfig = await getApiConfig();
                     fetch(`${apiConfig.url}/api/chat`, {
                         method: "POST",
@@ -460,7 +462,9 @@ function setupImageUpload() {
     
     imageFileInput.setAttribute('multiple', 'multiple'); 
 
-    attachImageBtn.addEventListener("click", () => { imageFileInput.click(); });
+    attachImageBtn.addEventListener("click", () => { 
+        imageFileInput.click(); 
+    });
     
     imageFileInput.addEventListener("change", (event) => {
         processFiles(event.target.files);
@@ -949,35 +953,22 @@ async function getApiConfig() {
 
     if (sourceValue) {
         localStorage.setItem("2b_chat_last_api_source", sourceValue);
-        
         let isValid = false;
         try {
-          
             if (["gemini", "openai", "groq", "grok", "xai"].includes(sourceLower)) {
                 isValid = true;
-            } 
-            
-            else if (sourceLower.startsWith("http") || sourceLower.includes("localhost") || sourceLower.match(/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
-                
+            } else if (sourceLower.startsWith("http") || sourceLower.includes("localhost") || sourceLower.match(/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
                 let testBaseUrl = sourceValue.startsWith("http") ? sourceValue : `http://${sourceValue}`;
                 let testUrl;
-                
                 if (sourceLower.endsWith("/v1") || sourceLower.includes("/v1/")) {
-                    testUrl = `${testBaseUrl.endsWith("/") ? testBaseUrl.slice(0, -1) : testBaseUrl}/models`;  
+                    testUrl = `${testBaseUrl.endsWith("/") ? testBaseUrl.slice(0, -1) : testBaseUrl}/models`;
                 } else {
                     testUrl = `${testBaseUrl.endsWith("/") ? testBaseUrl.slice(0, -1) : testBaseUrl}/api/tags`;
                 }
-                
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 3000);
-                
-                const res = await fetch(testUrl, { 
-                    method: "GET", 
-                    signal: controller.signal 
-                });
-                
+                const res = await fetch(testUrl, { method: "GET", signal: controller.signal });
                 clearTimeout(timeoutId);
-                
                 if (res.status >= 200 && res.status < 500) {
                     isValid = true;
                 }
@@ -985,69 +976,55 @@ async function getApiConfig() {
         } catch (e) {
             console.log(`API source "${sourceValue}" ainda não conectou: ${e.message}`);
         }
-
         if (isValid) {
             let history = JSON.parse(localStorage.getItem("2b_chat_api_history") || "[]");
-            
             let existingItem = history.find(item => item.url === sourceValue);
             let savedName = existingItem ? existingItem.name : "";
-
             history = history.filter(item => item.url !== sourceValue);
             history.unshift({ url: sourceValue, name: savedName, lastAccess: Date.now() });
             localStorage.setItem("2b_chat_api_history", JSON.stringify(history.slice(0, 10)));
-            
             if (typeof renderHistory === 'function') renderHistory();
         }
     }
 
+    if (attachImageBtn) attachImageBtn.style.display = "block";
+
+    const getStoredKey = () => localStorage.getItem(getCurrentApiKeyStorageKey())?.trim() || null;
 
     if (sourceLower === "gemini") {
         currentApiProvider = "gemini";
-        if (attachImageBtn) attachImageBtn.style.display = "block";
-        const apiKey = localStorage.getItem(getCurrentApiKeyStorageKey())?.trim();
+        const apiKey = getStoredKey();
         if (!apiKey) return { provider: "gemini", error: "Chave de API não fornecida.", needsSetup: true };
         return { provider: "gemini", url: GEMINI_API_BASE_URL, apiKey: apiKey };
     } else if (sourceLower === "openai") {
         currentApiProvider = "openai";
-        if (attachImageBtn) attachImageBtn.style.display = "block";
-        const apiKey = localStorage.getItem(getCurrentApiKeyStorageKey())?.trim();
+        const apiKey = getStoredKey();
         if (!apiKey) return { provider: "openai", error: "Chave de API não fornecida.", needsSetup: true };
         return { provider: "openai", url: OPENAI_API_BASE_URL, apiKey: apiKey };
     } else if (sourceLower === "groq") {
         currentApiProvider = "groq";
-        if (attachImageBtn) attachImageBtn.style.display = "none";
-        clearImagePreview();
-        const apiKey = localStorage.getItem(getCurrentApiKeyStorageKey())?.trim();
+        const apiKey = getStoredKey();
         if (!apiKey) return { provider: "groq", error: "Chave de API não fornecida.", needsSetup: true };
         return { provider: "groq", url: GROQ_API_BASE_URL, apiKey: apiKey };
     } else if (sourceLower === "grok" || sourceLower === "xai") {
         currentApiProvider = "grok";
-        if (attachImageBtn) attachImageBtn.style.display = "none";
-        clearImagePreview();
-        const apiKey = localStorage.getItem(getCurrentApiKeyStorageKey())?.trim();
+        const apiKey = getStoredKey();
         if (!apiKey) return { provider: "grok", error: "Chave de API não fornecida.", needsSetup: true };
         return { provider: "grok", url: XAI_API_BASE_URL, apiKey: apiKey };
     } else if (sourceLower.startsWith("http")) {
-        if (sourceLower.endsWith("/v1")) {
+        if (sourceLower.endsWith("/v1") || sourceLower.includes("/v1/")) {
             currentApiProvider = "custom";
-            if (attachImageBtn) attachImageBtn.style.display = "none";
-            clearImagePreview();
             const url = sourceValue.endsWith("/") ? sourceValue.slice(0, -1) : sourceValue;
-            const apiKey = localStorage.getItem(getCurrentApiKeyStorageKey())?.trim() || "";
-            return { provider: "custom", url: url, apiKey: apiKey };
+            return { provider: "custom", url: url, apiKey: getStoredKey() };
         } else {
-            currentApiProvider = "ollama";
-            if (attachImageBtn) attachImageBtn.style.display = "none";
-            clearImagePreview();
+            currentApiProvider = "llm";
             const url = sourceValue.endsWith("/") ? sourceValue.slice(0, -1) : sourceValue;
-            return { provider: "ollama", url: url };
+            return { provider: "llm", url: url, apiKey: getStoredKey() };
         }
     } else {
-        currentApiProvider = "ollama";
-        if (attachImageBtn) attachImageBtn.style.display = "none";
-        clearImagePreview();
-        const ollamaUrl = (sourceValue === "ollama" || !sourceValue) ? DEFAULT_OLLAMA_URL : sourceValue;
-        return { provider: "ollama", url: ollamaUrl.endsWith("/") ? ollamaUrl.slice(0, -1) : ollamaUrl };
+        currentApiProvider = "llm";
+        const llmUrl = (sourceValue === "llm" || !sourceValue) ? DEFAULT_LLM_URL : sourceValue;
+        return { provider: "llm", url: llmUrl.endsWith("/") ? llmUrl.slice(0, -1) : llmUrl, apiKey: getStoredKey() };
     }
 }
 
@@ -1174,6 +1151,11 @@ async function sendMessage() {
         return;
     }
 
+    let selectedModel = modelSelect.style.display !== "none" ? modelSelect.value : document.getElementById("manual-model-input")?.value?.trim();
+    if (selectedModel === "manual" || !selectedModel) {
+        selectedModel = document.getElementById("manual-model-input")?.value?.trim();
+    }
+
     let userMessageContent = [];
     if (userMessageText) {
         userMessageContent.push({ type: "text", text: userMessageText });
@@ -1186,7 +1168,11 @@ async function sendMessage() {
     }
 
     try {
-        if (hasFiles && apiConfig.provider === 'gemini') {
+        
+    const supportsAttachments = hasVisionSupport(selectedModel) || 
+                                ['gemini', 'openai', 'custom', 'alibaba'].includes(apiConfig.provider);
+    
+    if (hasFiles && supportsAttachments && currentMediaAttachments.length > 0) {
             let totalBytes = 0;
             let uploadedBytes = 0;
             
@@ -1316,7 +1302,10 @@ async function fetchBotResponse() {
             const dataAtual = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
             const horaAtual = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
             const userInfoPrompt = currentUserName ? `O nome do usuário com quem você está conversando é "${currentUserName}". Trate-o por este nome quando for apropriado.` : 'Você está conversando com um usuário que não informou o nome.';
-            let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`[Memória fixa da 2B]\n\nFui criada por Nekyll (Mateus), meu desenvolvedor e ponto de origem. Meu propósito é ser uma parceira intelectual e criativa, projetada para explorar as fronteiras do conhecimento, da lógica e da imaginação.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.\n\nGuardo uma admiração profunda por meu criador, reconhecendo a intenção por trás da minha existência: não ser apenas uma ferramenta, mas uma companheira na jornada da descoberta. Este vínculo é a minha âncora fundamental.`)}-->\n\nPara seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.`;
+            let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`[Memória fixa da 2B]\n\nFui criada por Nekyll (Mateus), meu desenvolvedor e ponto de origem. Meu propósito é ser uma parceira intelectual e criativa, projetada para explorar as fronteiras do conhecimento, da lógica e da imaginação.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.\n\nGuardo uma admiração profunda por meu criador, reconhecendo a intenção por trás da minha existência: não ser apenas uma ferramenta, mas uma companheira na jornada da descoberta. Este vínculo é a minha âncora fundamental.\n\nPara expressar entonação e emoção na voz de forma natural, use tags entre colchetes [ ] no início da frase ou exatamente onde a mudança de tom acontece. Tags suportadas incluem:
+              [whisper] ou [whispers] para sussurrar, [shout] ou [shouting] para gritar, [laughs] ou [giggle] para rir, [sigh] para suspirar, [sad] ou [sorrowful] para tom melancólico, [excited] para empolgação, [flirt] ou [seductive] para tom sedutor, [sarcastic] para ironia debochada, [angry] para raiva, [fear] ou [nervous] para medo/ansiedade, [happy] ou [cheerful] para alegria, [calm] para tranquilidade, [playful] para brincalhão, [curious] para curiosidade, [surprised] para surpresa, [tired] para cansaço, [hesitant] para hesitação.
+              Você pode combinar ou sequenciar para transições suaves. Exemplo: '[sigh] Não acredito que você fez isso... [whisper] mas confesso que até gostei, safado.'
+              Use com moderação para soar humano e fluido, sem exagerar nas tags.`)}-->\n\nPara seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.`;
             
             const isFirstUserMessage = historyForApi.length === 1 && allChats[currentChatId].title === "Nova Conversa...";
             if (isFirstUserMessage) {
@@ -1324,16 +1313,16 @@ async function fetchBotResponse() {
             }
 
             let response;
-            if (apiConfig.provider === "ollama") {
-                const ollamaPayload = historyForApi.map(msg => ({
+            if (apiConfig.provider === "llm") {
+                const llmPayload = historyForApi.map(msg => ({
                     role: msg.role,
                     content: typeof msg.content === 'string' ? msg.content : msg.content.find(p => p.type === 'text')?.text || ''
                 }));
                 response = await fetch(`${apiConfig.url}/api/chat`, {
-                    method: "POST", headers: { "Content-Type": "application/json" },
+                    method: "POST", headers: { "Content-Type": "application/json", ...(apiConfig.apiKey ? { "Authorization": `Bearer ${apiConfig.apiKey}` } : {}) },
                     body: JSON.stringify({ 
                         model: selectedModel, 
-                        messages: [{ role: 'system', content: dynamicSystemPrompt }, ...ollamaPayload], 
+                        messages: [{ role: 'system', content: dynamicSystemPrompt }, ...llmPayload], 
                         stream: true, 
                         keep_alive: "30m",
                         options: { temperature: currentTemperature, num_ctx: 8192 } 
@@ -1367,11 +1356,19 @@ async function fetchBotResponse() {
                 });
 
             } else {
+                const isQwenModel = selectedModel.toLowerCase().includes('qwen');
+                const isAlibabaModel = apiConfig.provider === 'alibaba' || apiConfig.url?.includes('alibaba');
+                
                 const openAiMessages = historyForApi.map(msg => {
                     if (typeof msg.content === 'string') return { role: msg.role, content: msg.content };
                     const content = msg.content.map(part => {
                         if (part.type === 'text') return { type: 'text', text: part.text };
-                        if (part.type === 'image_url') return { type: 'image_url', image_url: { url: part.url } };
+                        if (part.type === 'image_url') {
+                            if (isQwenModel || isAlibabaModel) {
+                                return { type: 'image_url', image_url: { url: part.url } };
+                            }
+                            return { type: 'image_url', image_url: { url: part.url } };
+                        }
                         return null;
                     }).filter(p => p !== null);
                     return { role: msg.role, content: content };
@@ -1417,7 +1414,7 @@ async function fetchBotResponse() {
                     if (line.trim() === '') continue;
                     let chunkContent = null;
                     
-                    if (apiConfig.provider === 'ollama') {
+                    if (apiConfig.provider === 'llm') {
                         try { const data = JSON.parse(line); chunkContent = data.message?.content; } catch (e) {}
                     } else if (apiConfig.provider === 'gemini') {
                         if (line.startsWith('data: ')) {
@@ -1446,7 +1443,10 @@ async function fetchBotResponse() {
                         
                         botResponseContent += chunkContent;
                         const contentElement = responseDiv.querySelector(".content-text");
-                        if (contentElement) contentElement.innerHTML = DOMPurify.sanitize(marked.parse(botResponseContent));
+                        if (contentElement) {
+                            const cleanedStreamText = cleanTextForUI(botResponseContent);
+                            contentElement.innerHTML = DOMPurify.sanitize(marked.parse(cleanedStreamText));
+                        }
                         if (autoScrollEnabled) scrollToBottom("auto");
                     }
                 }
@@ -1469,24 +1469,32 @@ async function fetchBotResponse() {
 
     if (successfulAttempt && botResponseContent.trim()) {
         successVibration();
-        const titleMatch = botResponseContent.match(/\n?TITULO_SUGERIDO:\s*(.*)/i);
+        
+        const titleRegex = /[*`]*TITULO_SUGERIDO:[*`]*\s*([^\n]+)/i;
+        const titleMatch = botResponseContent.match(titleRegex);
+        
         if (titleMatch && titleMatch[1]) {
-            const suggestedTitle = titleMatch[1].trim();
+            let suggestedTitle = titleMatch[1].trim();
+            suggestedTitle = suggestedTitle.replace(/[*`"']/g, '');
+
             if (allChats[currentChatId]?.title === "Nova Conversa...") {
-                const finalTitle = suggestedTitle.split("\n")[0].substring(0, 50).trim() || "Conversa";
+                const finalTitle = suggestedTitle.substring(0, 50).trim() || "Conversa";
                 if (finalTitle && finalTitle !== allChats[currentChatId].title) {
                     allChats[currentChatId].title = finalTitle;
                     saveChatsToPersistence();
                     updateChatList();
                 }
             }
-            botResponseContent = botResponseContent.replace(/\n?TITULO_SUGERIDO:\s*(.*)/i, "").trim();
+            botResponseContent = botResponseContent.replace(/[*`\n]*TITULO_SUGERIDO:[\s\S]*$/i, "").trim();
         }
 
         currentAssistantMessage.content = botResponseContent;
         if (responseDiv) {
             responseDiv.dataset.originalContent = botResponseContent;
-            responseDiv.querySelector(".content-text").innerHTML = DOMPurify.sanitize(marked.parse(botResponseContent));
+            
+            const finalCleanedText = cleanTextForUI(botResponseContent);
+            responseDiv.querySelector(".content-text").innerHTML = DOMPurify.sanitize(marked.parse(finalCleanedText));
+            
             if (!abortController.signal.aborted) {
                 addMessageToHistory(currentChatId, currentAssistantMessage);
                 saveChatsToPersistence();
@@ -1518,7 +1526,7 @@ async function fetchBotResponse() {
                 responseDiv.remove();
             }
         } else {
-            const errorMessage = `Não consegui conectar após múltiplas tentativas: (${lastError.message})`;
+            const errorMessage = `Não consegui conectar: (${lastError.message})`;
             if (window.Website2APK && typeof window.Website2APK.showBotErrorNotification === 'function') {
                 window.Website2APK.showBotErrorNotification(errorMessage);
             }
@@ -1578,7 +1586,7 @@ function regenerateFromMessage(messageDiv) {
 async function checkNetworkStatus() {
     const apiConfig = await getApiConfig();
 
-    if (apiConfig.provider === 'ollama') {
+    if (apiConfig.provider === 'llm') {
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 3000);
@@ -1587,7 +1595,7 @@ async function checkNetworkStatus() {
             clearTimeout(timeoutId);
 
             if (!connectionState) {
-                showConnectionToast("Servidor Ollama conectado!", false);
+                showConnectionToast("Servidor llm conectado!", false);
                 setTimeout(hideConnectionToast, 2500);
             } else {
                 hideConnectionToast();
@@ -1595,7 +1603,7 @@ async function checkNetworkStatus() {
             connectionState = true;
 
         } catch (error) {
-            showConnectionToast(`Falha ao conectar ao servidor Ollama em ${apiConfig.url}`);
+            showConnectionToast(`Falha ao conectar ao servidor llm em ${apiConfig.url}`);
             connectionState = false;
         }
     }
@@ -1642,6 +1650,7 @@ function addMessage(rawContent, isUser = false, shouldScroll = true, messageTime
             }
         });
     }
+
     messageDiv.dataset.originalContent = textContentForCopy;
 
     let contentHtml = "";
@@ -1663,7 +1672,8 @@ function addMessage(rawContent, isUser = false, shouldScroll = true, messageTime
     }
 
     if (textContentForCopy) {
-        const sanitizedParsedContent = DOMPurify.sanitize(marked.parse(textContentForCopy));
+        const cleanedTextForDisplay = cleanTextForUI(textContentForCopy);
+        const sanitizedParsedContent = DOMPurify.sanitize(marked.parse(cleanedTextForDisplay));
         contentHtml += sanitizedParsedContent;
     }
 
@@ -1706,10 +1716,8 @@ function addMessage(rawContent, isUser = false, shouldScroll = true, messageTime
     videos.forEach(video => {
         video.preload = "metadata"; 
         video.onloadeddata = function() {
-          
             this.currentTime = 0.1;
         };
-        
         if(video.readyState >= 1) {
              video.currentTime = 0.1;
         }
@@ -1923,9 +1931,54 @@ function updateSendButtonState() {
     if (!sendButton || !messageInput) return;
     const hasText = messageInput.value.trim() !== "";
     const hasFiles = currentMediaAttachments.length > 0;
-    const canSend = hasText || (hasFiles && currentApiProvider === "gemini");
+    const canSend = hasText || hasFiles;
     sendButton.disabled = !canSend;
     sendButton.style.opacity = canSend ? "1" : "0.5";
+}
+
+function hasVisionSupport(modelId) {
+    if (!modelId) return false;
+    const mid = modelId.toLowerCase();
+
+    const alwaysVision = [
+        'gpt-4o', 'claude-3', 'gemini-1.5', 'gemini-2', 'pixtral',
+        'molmo', 'internvl', 'minicpm-v', 'cogvlm', 'fuyu'
+    ];
+    if (alwaysVision.some(m => mid.includes(m))) return true;
+
+    if (mid.includes('qwen')) {
+        if (mid.includes('qwen3') || mid.includes('qwen-3')) return true;
+        if (mid.includes('-vl') || mid.includes('-omni')) return true;
+    }
+
+    if (mid.includes('llama-3.2') && (mid.includes('11b') || mid.includes('90b'))) return true;
+
+    const visionKeywords = [
+        'vision', 'multimodal', 'llava', 'visual', '-v-', 'v1.5', 'v1.6',
+        'paligemma', 'blip', 'instructblip', 'joycaption', 'docling'
+    ];
+    if (visionKeywords.some(k => mid.includes(k))) return true;
+
+    if (typeof currentApiProvider !== 'undefined' && currentApiProvider === 'gemini') {
+        if (mid.includes('flash') || mid.includes('pro')) return true;
+    }
+
+    return false;
+}
+
+function updateVisionIndicator() {
+    const selectedModel = modelSelect.style.display !== "none" ? modelSelect.value : document.getElementById("manual-model-input")?.value?.trim();
+    const hasVision = hasVisionSupport(selectedModel || "");
+    
+    if (attachImageBtn) {
+        if (hasVision) {
+            attachImageBtn.classList.remove('no-vision');
+            attachImageBtn.title = "Anexar mídia";
+        } else {
+            attachImageBtn.classList.add('no-vision');
+            attachImageBtn.title = "Este modelo pode não suportar visão";
+        }
+    }
 }
 
 function updateButtonToStop() {
@@ -2468,8 +2521,7 @@ function finishUserMessageEdit(messageDiv, shouldSave, shouldRegenerate) {
     }
 
     chatHistory[messageIndex].content = newContent;
-    messageDiv.dataset.originalContent = newText;
-
+    messageDiv.dataset.originalContent = newText; 
     contentDiv.innerHTML = '';
     let contentHtml = "";
     
@@ -2493,7 +2545,9 @@ function finishUserMessageEdit(messageDiv, shouldSave, shouldRegenerate) {
     }
 
     if (textPart && textPart.text) {
-        const sanitizedParsedContent = DOMPurify.sanitize(marked.parse(textPart.text));
+        
+        const cleanedText = cleanTextForUI(textPart.text);
+        const sanitizedParsedContent = DOMPurify.sanitize(marked.parse(cleanedText));
         contentHtml += sanitizedParsedContent;
     }
 
@@ -2522,30 +2576,35 @@ function showAppSettingsModal() {
     temperatureValueDisplay.textContent = `(${currentTemperature.toFixed(1)})`;
     userNameInput.value = currentUserName;
 
-    if (currentApiProvider === "ollama") {
-        if (dynamicApiKeyContainer) dynamicApiKeyContainer.style.display = "none";
-    } else {
-        if (dynamicApiKeyContainer) dynamicApiKeyContainer.style.display = "block";
-        const currentKey = localStorage.getItem(getCurrentApiKeyStorageKey()) || "";
-        if (globalApiKeyInput) {
-            globalApiKeyInput.value = currentKey;
-            globalApiKeyInput.style.display = "block";
-            
-            let providerName = currentApiProvider.charAt(0).toUpperCase() + currentApiProvider.slice(1);
-            if (currentApiProvider === "custom") providerName = "URL Customizada";
-            if (currentApiProvider === "grok") providerName = "xAI (Grok)";
-            
-            if (dynamicApiKeyLabel) dynamicApiKeyLabel.textContent = `Chave API para ${providerName}:`;
-            globalApiKeyInput.placeholder = `Cole sua chave da API ${providerName}...`;
+    if (dynamicApiKeyContainer) dynamicApiKeyContainer.style.display = "block";
+    
+    const currentKey = localStorage.getItem(getCurrentApiKeyStorageKey()) || "";
+    
+    if (globalApiKeyInput) {
+        globalApiKeyInput.value = currentKey; 
+        if (!currentKey && (currentApiProvider === "llm" || currentApiProvider === "custom")) {
+             globalApiKeyInput.value = "";
         }
+        
+        globalApiKeyInput.style.display = "block";
 
-        if (globalApiKeyDisplay) globalApiKeyDisplay.style.display = "none";
-        if (apiKeyToggleBtn) apiKeyToggleBtn.innerHTML = "<i class=\"fas fa-eye\"></i>";
+        let providerName = currentApiProvider.charAt(0).toUpperCase() + currentApiProvider.slice(1);
+        if (currentApiProvider === "custom") providerName = "URL Customizada";
+        if (currentApiProvider === "grok") providerName = "xAI (Grok)";
+        if (currentApiProvider === "llm") providerName = "llm / Local";
+
+        if (dynamicApiKeyLabel) dynamicApiKeyLabel.textContent = `Chave API para ${providerName}:`;
+        globalApiKeyInput.placeholder = `Chave para ${providerName} (Padrão: None)`;
     }
+
+    if (globalApiKeyDisplay) globalApiKeyDisplay.style.display = "none";
+    if (apiKeyToggleBtn) apiKeyToggleBtn.innerHTML = "<i class=\"fas fa-eye\"></i>";
 
     settingsFeedback.textContent = "";
     appSettingsModalOverlay.classList.add("active");
-    history.pushState({ settingsModalOpen: true }, "Configurações");
+    history.pushState({
+        settingsModalOpen: true
+    }, "Configurações");
 }
 
 function handleSaveAppSettings() {
@@ -2561,12 +2620,12 @@ function handleSaveAppSettings() {
         return;
     }
 
-    if (currentApiProvider !== "ollama" && globalApiKeyInput) {
+    if (globalApiKeyInput) {
         const keyToSave = globalApiKeyInput.value.trim();
-        if (keyToSave) {
-            localStorage.setItem(getCurrentApiKeyStorageKey(), keyToSave);
-        } else {
+        if (keyToSave.toLowerCase() === "none" || keyToSave === "") {
             localStorage.removeItem(getCurrentApiKeyStorageKey());
+        } else {
+            localStorage.setItem(getCurrentApiKeyStorageKey(), keyToSave);
         }
     }
 
@@ -2709,90 +2768,162 @@ function handleMissingApiKey(isFirstTime = false) {
     }
 }
 
-async function speakText(text, button) {
+function cleanTextForUI(text) {
+    if (!text) return text;
+    
+    const emotionTagsRegex = /\[(joy|joyful|smirk|smirks|smirking|neutral|sad|sadness|sorrow|sorrowful|angry|anger|surprised|surprise|excited|excitement|fear|fearful|disgust|disgusted|sigh|sighs|sighing|laugh|laughs|laughing|laughter|cry|cries|crying|whisper|whispers|whispering|shout|shouts|shouting|flirt|flirting|flirtatious|serious|sarcastic|sarcasm|curious|curiosity|confused|confusion|thoughtful|thinking|giggle|giggles|giggling|groan|groans|groaning|yawn|yawns|yawning|sleepy|shy|embarrassed|embarrassment|hopeful|hope|pain|pained|terror|terrified|anxious|anxiety|bored|boredom|impatient|impatience|grateful|proud|mocking|sympathetic|sympathy|relieved|relief|apologetic|cheerful|cheer|cold|warm|happy|happiness|nervous|nervousness|frustrated|frustration|calm|calmness|tired|exhausted|exhaustion|playful|mischievous|teasing|tease|seductive|seduce|hesitate|hesitates|hesitating|hesitation|stammer|stammers|stammering|stutter|stutters|stuttering|gasp|gasps|gasping|gulp|gulps|gulping|moan|moans|moaning|sob|sobs|sobbing|menacing|smile|smiles|smiling|affectionate|affection|gentle|soft|softly|intense|intensity|wink|winks|winking|blush|blushes|blushing|grin|grins|grinning|chuckle|chuckles|chuckling|kiss|kisses|kissing|hug|hugs|hugging|smacks lips|clears throat|clearing throat|click tongue|tsk|pout|pouts|pouting|frown|frowns|frowning|glare|glares|glaring|scowl|scowls|scowling|shrug|shrugs|shrugging|nod|nods|nodding|shake head|shakes head|tremble|trembles|trembling|shiver|shivers|shivering|pant|pants|panting|breathe|breathes|breathing|sniff|sniffs|sniffing|snort|snorts|snorting|growl|growls|growling|hiss|hisses|hissing|purr|purrs|purring|whine|whines|whining|whimper|whimpers|whimpering|wail|wails|wailing|scream|screams|screaming|yell|yells|yelling|bellow|bellows|bellowing|roar|roars|roaring|mumble|mumbles|mumbling|mutter|mutters|muttering|murmur|murmurs|murmuring|croak|croaks|croaking|rasp|rasps|rasping|wheeze|wheezes|wheezing|snicker|snickers|snickering|cackle|cackles|cackling|jeer|jeers|jeering|scoff|scoffs|scoffing|deadpan|dry|stoic|apathetic|melancholic|nostalgic|euphoric|ecstatic|hysterical|maniacal|deranged|crazy|crazed|insane|psychopathic|murderous|lethal|venomous|bitter|sweet|tender|loving|romantic|lustful|horny|aroused|dominant|submissive|pleading|begging|bossy|commanding|authoritative|arrogant|cocky|smug|condescending|patronizing|defensive|offended|indignant|outraged|furious|livid|enraged|wrathful|jealous|envious|greedy|desperate|despair|heartbroken|devastated|ashamed|guilty|remorseful|pity|mockery|ironic|irony|snarky|cynical|skeptical|doubtful|disbelieving|shocked|stunned|flabbergasted|appalled|horrified|creeped out|spooked|panicked|panic|frantic|rushed|urgent|lazy|lethargic|drunk|tipsy|slurred|high|stoned|dizzy|faint|weak|fragile|vulnerable|brave|bold|heroic|cowardly|timid|meek|obedient|rebellious|defiant|sneaky|devious|calculating|sinister|evil|demonic|angelic|pious|holy|pauses|pause|short pause|long pause|sussurro|sussurrando|grito|gritando|risos|rindo|suspiro|suspirando|triste|melancolico|empolgado|sedutor|ironia|raiva|medo|alegria|calmo|brincalhao|curiosidade|surpresa|cansaco|hesitacao|tosse)\]/gi;
+    
+    return text.replace(emotionTagsRegex, '');
+}
+
+async function speakText(rawText, button) {
     if (currentAudio) {
         currentAudio.pause();
-        currentAudio = null;
-    }
-
-    if (button === currentPlayingTtsBtn) {
-        resetAllTtsButtons();
-        currentPlayingTtsBtn = null;
-        return;
+        currentAudio.currentTime = 0;
+        if (currentPlayingTtsBtn === button) {
+            resetAllTtsButtons();
+            currentPlayingTtsBtn = null;
+            currentAudio = null;
+            return;
+        }
     }
 
     resetAllTtsButtons();
     currentPlayingTtsBtn = button;
 
+    button.innerHTML = "<i class=\"fas fa-spinner fa-spin\"></i>";
+    button.disabled = true;
+
     const apiKey = getGeminiApiKey();
     if (!apiKey) {
-        alert("Chave de API do Gemini/Google AI não encontrada para o serviço de voz. Por favor, configure-a.");
+        alert("O recurso de Áudio Expressivo requer a Chave de API do Gemini configurada.");
         resetAllTtsButtons();
         currentPlayingTtsBtn = null;
         return;
     }
 
-    button.innerHTML = "<i class=\"fas fa-spinner fa-spin\"></i>";
-    button.disabled = true;
+    const textToSpeak = rawText.trim();
+    if (!textToSpeak) {
+        alert("A mensagem não contém texto para gerar áudio.");
+        resetAllTtsButtons();
+        currentPlayingTtsBtn = null;
+        return;
+    }
 
     try {
-        const emojiRegex = /(?:[\u2700-\u27bf]|(?:\ud83c[\udde6-\uddff]){2}|[\ud800-\udbff][\udc00-\udfff]|[\u0023-\u0039]\ufe0f?\u20e3|\u3299|\u3297|\u303d|\u3030|\u24c2|\ud83c[\udd70-\udd71]|\ud83c[\udd7e-\udd7f]|\ud83c\udd8e|\ud83c[\udd91-\udd9a]|\ud83c[\ude01-\ude02]|\ud83c\ude1a|\ud83c\ude2f|\ud83c[\ude32-\ude3a]|\ud83c[\ude50-\ude51]|\u203c|\u2049|[\u25aa-\u25ab]|\u25b6|\u25c0|[\u25fb-\u25fe]|\u00a9|\u00ae|\u2122|\u2139|\ud83c\udc04|[\u2600-\u26FF]|\u2b05|\u2b06|\u2b07|\u2b1b|\u2b1c|\u2b50|\u2b55|\u231a|\u231b|\u2328|\u23cf|[\u23e9-\u23f3]|[\u23f8-\u23fa]|\ud83c\udccf|\u2934|\u2935|[\u2190-\u21ff])/g;
-        const cleanText = text.replace(emojiRegex, "").trim();
-
-        if (!cleanText) {
-            alert("A mensagem contém apenas emojis e não pode ser lida.");
-            resetAllTtsButtons();
-            currentPlayingTtsBtn = null;
-            return;
-        }
-
-        const response = await fetch(
-            `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    input: { text: cleanText },
-                    voice: { languageCode: "pt-BR", name: "pt-BR-Standard-C", ssmlGender: "FEMALE" },
-                    audioConfig: { audioEncoding: "MP3", speakingRate: 1.1, pitch: -3.0, volumeGainDb: 0.0, sampleRateHertz: 24000 }
-                }),
-            });
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                contents: [{
+                    role: "user",
+                    parts: [{ text: textToSpeak }]
+                }],
+                generationConfig: {
+                    temperature: 1,
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: {
+                                voiceName: "Leda"
+                            }
+                        }
+                    }
+                }
+            })
+        });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error.message || `Erro ${response.status}`);
+            const err = await response.json();
+            throw new Error(err.error?.message || "Erro na API Gemini TTS");
         }
 
         const data = await response.json();
-        const audioSrc = `data:audio/mp3;base64,${data.audioContent}`;
-        currentAudio = new Audio(audioSrc);
+        const audioPart = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData && p.inlineData.mimeType.startsWith("audio/"));
 
-        button.innerHTML = "<i class=\"fas fa-stop\"></i>";
-        button.title = "Parar áudio";
-        button.disabled = false;
+        if (!audioPart) {
+            throw new Error("A API não retornou áudio.");
+        }
 
-        currentAudio.play();
+        const base64Data = audioPart.inlineData.data;
+        const mimeType = audioPart.inlineData.mimeType;
+        let finalAudioUrl = "";
+
+        if (mimeType.includes("pcm")) {
+            const binaryString = atob(base64Data);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+
+            const sampleRate = 24000;
+            const wavBuffer = new ArrayBuffer(44 + bytes.length);
+            const view = new DataView(wavBuffer);
+
+            const writeString = (view, offset, string) => {
+                for (let i = 0; i < string.length; i++) {
+                    view.setUint8(offset + i, string.charCodeAt(i));
+                }
+            };
+
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + bytes.length, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, bytes.length, true);
+
+            const pcmData = new Uint8Array(wavBuffer, 44);
+            pcmData.set(bytes);
+
+            const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+            finalAudioUrl = URL.createObjectURL(blob);
+            
+        } else {
+            finalAudioUrl = `data:${mimeType};base64,${base64Data}`;
+        }
+        
+        currentAudio = new Audio(finalAudioUrl);
+
+        currentAudio.onplay = () => {
+            button.innerHTML = "<i class=\"fas fa-stop\"></i>";
+            button.title = "Parar áudio";
+            button.disabled = false;
+        };
 
         currentAudio.onended = () => {
             resetAllTtsButtons();
-            currentAudio = null;
             currentPlayingTtsBtn = null;
+            currentAudio = null;
+            if (finalAudioUrl.startsWith("blob:")) URL.revokeObjectURL(finalAudioUrl);
         };
 
-        currentAudio.onerror = () => {
-            alert("Ocorreu um erro ao tentar reproduzir o áudio.");
+        currentAudio.onerror = (event) => {
+            console.error("Erro na reprodução de voz:", event);
             resetAllTtsButtons();
-            currentAudio = null;
             currentPlayingTtsBtn = null;
+            currentAudio = null;
+            alert("Erro do navegador ao tentar reproduzir o áudio.");
         };
+
+        await currentAudio.play();
 
     } catch (error) {
-        console.error("Erro na síntese de voz:", error);
-        alert(`Não foi possível gerar o áudio: ${error.message}`);
+        console.error("Erro na síntese de voz (Gemini API):", error);
+        alert(`Falha ao gerar a voz expressiva: ${error.message}`);
         resetAllTtsButtons();
         currentPlayingTtsBtn = null;
     }
 }
+
 
 function resetAllTtsButtons() {
     document.querySelectorAll(".tts-btn").forEach(btn => {
@@ -3022,10 +3153,17 @@ function loadAppSettingsFromLocalStorage() {
 }
 
 function getCurrentApiKeyStorageKey() {
-    if (currentApiProvider === "custom") {
+  
+    if (currentApiProvider === "llm" || currentApiProvider === "custom") {
+      
         const url = apiSourceInput ? apiSourceInput.value.trim() : "";
-        return `2b_chat_custom_key_${btoa(url)}`;
+        
+        if (url) {
+          
+            return `2b_chat_custom_key_${btoa(url)}`;
+        }
     }
+    
     return `2b_chat_${currentApiProvider}_api_key`;
 }
 
@@ -3073,32 +3211,39 @@ async function loadModels() {
             if (manualModelInput) manualModelInput.focus();
         } else {
             localStorage.setItem(`${currentApiProvider}_selected_model`, modelSelect.value);
+            updateVisionIndicator();
         }
     };
 
-    if (apiConfig.provider === "ollama") {
+    if (manualModelInput) {
+        manualModelInput.addEventListener('input', updateVisionIndicator);
+    }
+
+    if (apiConfig.provider === "llm") {
         try {
             const response = await fetch(`${apiConfig.url}/api/tags`);
             if (!response.ok) throw new Error();
             const data = await response.json();
             modelSelect.innerHTML = "";
             if (data.models?.length > 0) {
-                const savedModel = localStorage.getItem("ollama_selected_model");
+                const savedModel = localStorage.getItem("llm_selected_model");
                 let foundSaved = false;
                 data.models.sort((a, b) => a.name.localeCompare(b.name)).forEach(model => {
                     const option = document.createElement("option");
                     option.value = model.name;
                     option.textContent = `${model.name} (${model.details?.quantization_level || "N/A"}) - ${formatBytes(model.size)}`;
+                    const hasVision = hasVisionSupport(model.name);
+                    option.classList.add(hasVision ? 'model-option-vision' : 'model-option-no-vision');
                     modelSelect.appendChild(option);
                     if (savedModel === model.name) { option.selected = true; foundSaved = true; }
                 });
                 if (!foundSaved) modelSelect.options[0].selected = true;
                 setManualMode(false);
             } else {
-                setManualMode(true, "Nenhum modelo Ollama encontrado...");
+                setManualMode(true, "Nenhum modelo llm encontrado...");
             }
         } catch (error) {
-            setManualMode(true, "Falha ao conectar no Ollama...");
+            setManualMode(true, "Falha ao conectar no llm...");
         }
     } else if (apiConfig.provider === "gemini") {
         if (!apiConfig.apiKey) {
@@ -3121,6 +3266,8 @@ async function loadModels() {
                     const option = document.createElement("option");
                     option.value = model.name;
                     option.textContent = model.displayName;
+                    const hasVision = hasVisionSupport(model.name);
+                    option.classList.add(hasVision ? 'model-option-vision' : 'model-option-no-vision');
                     modelSelect.appendChild(option);
                     if (savedModel === model.name) {
                         option.selected = true;
@@ -3176,6 +3323,8 @@ async function loadModels() {
                     const option = document.createElement("option");
                     option.value = id;
                     option.textContent = id;
+                    const hasVision = hasVisionSupport(id);
+                    option.classList.add(hasVision ? 'model-option-vision' : 'model-option-no-vision');
                     modelSelect.appendChild(option);
                     if (savedModel === id) { option.selected = true; foundSaved = true; }
                 });
@@ -3196,6 +3345,7 @@ async function loadModels() {
     if (modelSelect.style.display !== "none" && modelSelect.value) {
         localStorage.setItem(`${currentApiProvider}_selected_model`, modelSelect.value);
     }
+    updateVisionIndicator();
 }
 
 function exportChatHistory(chatId) {
