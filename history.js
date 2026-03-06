@@ -1,5 +1,3 @@
-// history.js
-
 const MAX_HISTORY_TOKENS = 200000;
 let allChats = {};
 let saveChatsTrigger;

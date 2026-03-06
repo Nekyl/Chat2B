@@ -54,7 +54,6 @@
         --hover-bg: rgba(255, 255, 255, 0.1);
         --light-border: 1px solid rgba(255, 255, 255, 0.05);
 
-        /* Syntax Highlighting Colors */
         --token-comment: #708090;
         --token-prolog: #708090;
         --token-doctype: #708090;
@@ -81,7 +80,6 @@
 }
 
 
-/* --- Global & Base Styles --- */
 * {
     margin: 0;
     padding: 0;
@@ -96,7 +94,7 @@ body {
     line-height: 1.6;
 }
 
-/* --- Sidebar --- */
+
 .sidebar {
     width: 260px;
     background-color: var(--sidebar-bg);
@@ -322,7 +320,6 @@ body {
     width: 14px;
 }
 
-/* --- Main Content --- */
 .main-content {
     background-color: var(--bg-color);
     flex-grow: 1;
@@ -495,7 +492,6 @@ body {
     margin-bottom: 10px;
 }
 
-/* --- Messages & Content --- */
 .message {
     display: flex;
     padding: 16px 20px;
@@ -777,7 +773,6 @@ body {
     }
 }
 
-/* --- Markdown & Content Formatting --- */
 .message-content {
     line-height: 1.6;
 }
@@ -878,7 +873,6 @@ body {
 }
 
 
-/* Inline Code Style */
 .message-content code:not(pre *) {
     padding: 2px 4px;
     margin: 0 2px;
@@ -889,7 +883,6 @@ body {
     color: var(--text-color);
     cursor: copy;
     border: 1px solid var(--border-color);
-    /* Correções para quebra de linha e fundo contínuo: */
     white-space: pre-wrap; 
     line-height: 1.5; 
     box-decoration-break: clone;
@@ -903,8 +896,6 @@ body {
     border-color: var(--accent-color) !important;
 }
 
-
-/* --- Code Blocks --- */
 .message-content pre {
     background: var(--input-bg);
     border-radius: 8px;
@@ -997,7 +988,6 @@ body {
 }
 
 .message-content pre code {
-    /* Overrides for inline styles */
     padding: 16px; 
     margin: 0;
     border-radius: 0;
@@ -1005,7 +995,7 @@ body {
     border: none;
     cursor: default;
     font-size: 14px; 
-    white-space: pre; /* Override to keep pre-wrap from general rules */
+    white-space: pre;
     display: block;
     overflow-x: auto;
     font-family: 'Fira Code', 'Consolas', 'Monaco', 'Andale Mono', monospace;
@@ -1120,7 +1110,6 @@ body {
     text-decoration: line-through !important;
 }
 
-/* --- Bottom Input Bar --- */
 .bottom-bar {
     background-color: var(--bg-color);
     border-top: 1px solid var(--border-color);
@@ -1285,7 +1274,6 @@ body {
     box-shadow: 0 1px 2px var(--shadow-color);
 }
 
-/* --- Modals & Overlays --- */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -1425,7 +1413,6 @@ body {
     background-color: #c62828;
 }
 
-/* --- App Settings Modal --- */
 #app-settings-modal {
     max-width: 600px;
 }
@@ -1589,7 +1576,6 @@ body {
     }
 }
 
-/* --- Image Preview & Thumbnails --- */
 .message-content .message-image-container {
     position: relative;
     width: 250px;
@@ -1704,7 +1690,6 @@ body {
     transform: rotate(180deg) scale(1.1);
 }
 
-/* --- Search --- */
 .search-container {
     position: absolute;
     top: 14px;
@@ -1914,7 +1899,6 @@ body {
     border-radius: 2px;
 }
 
-/* --- Utility & State Classes --- */
 .scroll-to-bottom-btn {
     position: fixed;
     bottom: 120px;
@@ -2027,7 +2011,6 @@ body {
     }
 }
 
-/* --- Mobile Responsive Styles --- */
 @media (max-width: 768px) {
     body,
     html {
