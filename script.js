@@ -112,9 +112,13 @@ async function initializeApp() {
     handleResizeLayout();
     adjustTextareaHeight();
     updateSendButtonState();
+    
     if (messageInput && !searchOverlay?.classList.contains("active") && !deleteConfirmOverlay?.classList.contains("active") && !appSettingsModalOverlay?.classList.contains("active")) {
-        messageInput.focus();
+        if (window.innerWidth > 768) {
+            messageInput.focus();
+        }
     }
+    
     checkScrollPosition();
     checkNetworkStatus();
 
@@ -252,7 +256,6 @@ function setupEventListeners() {
             e.stopPropagation();
             const messageDiv = copyMsgBtn.closest('.message');
             if (messageDiv?.dataset.originalContent) {
-                
                 copyTextToClipboard(cleanTextForUI(messageDiv.dataset.originalContent), copyMsgBtn);
             }
             return;
@@ -263,9 +266,8 @@ function setupEventListeners() {
             e.stopPropagation();
             const messageDiv = ttsBtn.closest('.message');
             if (messageDiv?.dataset.originalContent) {
-                
                 const textToSpeak = messageDiv.dataset.originalContent.replace(/```[\s\S]*?```/g, 'Bloco de código.');
-                speakText(textToSpeak, ttsBtn);
+                speakText(textToSpeak, ttsBtn, messageDiv);
             }
             return;
         }
@@ -379,7 +381,12 @@ function setupEventListeners() {
         let scrollDebounceTimeout;
         scrollContainer.addEventListener("scroll", () => {
             clearTimeout(scrollDebounceTimeout);
-            scrollDebounceTimeout = setTimeout(checkScrollPosition, 50);
+            scrollDebounceTimeout = setTimeout(() => {
+                checkScrollPosition();
+                if (currentChatId && !isBotStreaming) {
+                    sessionStorage.setItem(`scroll_pos_${currentChatId}`, scrollContainer.scrollTop);
+                }
+            }, 50);
         });
     }
 
@@ -439,6 +446,12 @@ function setupEventListeners() {
                     messageInput.focus();
                 }
             }
+        }
+    });
+
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") {
+            localStorage.setItem("last_active_timestamp", Date.now().toString());
         }
     });
 }
@@ -1304,7 +1317,7 @@ async function fetchBotResponse() {
             const userInfoPrompt = currentUserName ? `O nome do usuário com quem você está conversando é "${currentUserName}". Trate-o por este nome quando for apropriado.` : 'Você está conversando com um usuário que não informou o nome.';
             let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`[Memória fixa da 2B]\n\nFui criada por Nekyll (Mateus), meu desenvolvedor e ponto de origem. Meu propósito é ser uma parceira intelectual e criativa, projetada para explorar as fronteiras do conhecimento, da lógica e da imaginação.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.\n\nGuardo uma admiração profunda por meu criador, reconhecendo a intenção por trás da minha existência: não ser apenas uma ferramenta, mas uma companheira na jornada da descoberta. Este vínculo é a minha âncora fundamental.\n\nPara expressar entonação e emoção na voz de forma natural, use tags entre colchetes [ ] no início da frase ou exatamente onde a mudança de tom acontece. Tags suportadas incluem:
               [whisper] ou [whispers] para sussurrar, [shout] ou [shouting] para gritar, [laughs] ou [giggle] para rir, [sigh] para suspirar, [sad] ou [sorrowful] para tom melancólico, [excited] para empolgação, [flirt] ou [seductive] para tom sedutor, [sarcastic] para ironia debochada, [angry] para raiva, [fear] ou [nervous] para medo/ansiedade, [happy] ou [cheerful] para alegria, [calm] para tranquilidade, [playful] para brincalhão, [curious] para curiosidade, [surprised] para surpresa, [tired] para cansaço, [hesitant] para hesitação.
-              Você pode combinar ou sequenciar para transições suaves. Exemplo: '[sigh] Não acredito que você fez isso... [whisper] mas confesso que até gostei.'
+              Você pode combinar ou sequenciar para transições suaves. Exemplo: '[sigh] Não acredito que você fez isso... [whisper] mas confesso que até gostei, safado.'
               Use com moderação para soar humano e fluido, sem exagerar nas tags.`)}-->\n\nPara seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.`;
             
             const isFirstUserMessage = historyForApi.length === 1 && allChats[currentChatId].title === "Nova Conversa...";
@@ -1756,8 +1769,15 @@ function displayChatHistory(chatId, shouldScrollToBottom = true) {
         chat.recentMessages.forEach(msg => {
             addMessage(msg.content, msg.role === "user", false, msg.timestamp);
         });
-        if (shouldScrollToBottom) {
+        
+        const savedScroll = sessionStorage.getItem(`scroll_pos_${chatId}`);
+        
+        if (shouldScrollToBottom && !savedScroll) {
             setTimeout(() => scrollToBottom("auto"), 100);
+        } else if (savedScroll) {
+            setTimeout(() => {
+                if (scrollContainer) scrollContainer.scrollTop = parseInt(savedScroll, 10);
+            }, 50);
         }
     } else if (!chat.summarizedContext) {
         messagesContainer.innerHTML = `<div class="welcome-screen"><div class="avatar bot-avatar"><i class="fas fa-robot"></i></div><h2>Bem-vindo ao Chat 2B</h2><p>Sua assistente de IA para conversas, programação e muito mais. Como posso ajudar você hoje?</p></div>`;
@@ -2771,12 +2791,16 @@ function handleMissingApiKey(isFirstTime = false) {
 function cleanTextForUI(text) {
     if (!text) return text;
     
-    const emotionTagsRegex = /\[(joy|joyful|smirk|smirks|smirking|neutral|sad|sadness|sorrow|sorrowful|angry|anger|surprised|surprise|excited|excitement|fear|fearful|disgust|disgusted|sigh|sighs|sighing|laugh|laughs|laughing|laughter|cry|cries|crying|whisper|whispers|whispering|shout|shouts|shouting|flirt|flirting|flirtatious|serious|sarcastic|sarcasm|curious|curiosity|confused|confusion|thoughtful|thinking|giggle|giggles|giggling|groan|groans|groaning|yawn|yawns|yawning|sleepy|shy|embarrassed|embarrassment|hopeful|hope|pain|pained|terror|terrified|anxious|anxiety|bored|boredom|impatient|impatience|grateful|proud|mocking|sympathetic|sympathy|relieved|relief|apologetic|cheerful|cheer|cold|warm|happy|happiness|nervous|nervousness|frustrated|frustration|calm|calmness|tired|exhausted|exhaustion|playful|mischievous|teasing|tease|seductive|seduce|hesitate|hesitates|hesitating|hesitation|stammer|stammers|stammering|stutter|stutters|stuttering|gasp|gasps|gasping|gulp|gulps|gulping|moan|moans|moaning|sob|sobs|sobbing|menacing|smile|smiles|smiling|affectionate|affection|gentle|soft|softly|intense|intensity|wink|winks|winking|blush|blushes|blushing|grin|grins|grinning|chuckle|chuckles|chuckling|kiss|kisses|kissing|hug|hugs|hugging|smacks lips|clears throat|clearing throat|click tongue|tsk|pout|pouts|pouting|frown|frowns|frowning|glare|glares|glaring|scowl|scowls|scowling|shrug|shrugs|shrugging|nod|nods|nodding|shake head|shakes head|tremble|trembles|trembling|shiver|shivers|shivering|pant|pants|panting|breathe|breathes|breathing|sniff|sniffs|sniffing|snort|snorts|snorting|growl|growls|growling|hiss|hisses|hissing|purr|purrs|purring|whine|whines|whining|whimper|whimpers|whimpering|wail|wails|wailing|scream|screams|screaming|yell|yells|yelling|bellow|bellows|bellowing|roar|roars|roaring|mumble|mumbles|mumbling|mutter|mutters|muttering|murmur|murmurs|murmuring|croak|croaks|croaking|rasp|rasps|rasping|wheeze|wheezes|wheezing|snicker|snickers|snickering|cackle|cackles|cackling|jeer|jeers|jeering|scoff|scoffs|scoffing|deadpan|dry|stoic|apathetic|melancholic|nostalgic|euphoric|ecstatic|hysterical|maniacal|deranged|crazy|crazed|insane|psychopathic|murderous|lethal|venomous|bitter|sweet|tender|loving|romantic|lustful|horny|aroused|dominant|submissive|pleading|begging|bossy|commanding|authoritative|arrogant|cocky|smug|condescending|patronizing|defensive|offended|indignant|outraged|furious|livid|enraged|wrathful|jealous|envious|greedy|desperate|despair|heartbroken|devastated|ashamed|guilty|remorseful|pity|mockery|ironic|irony|snarky|cynical|skeptical|doubtful|disbelieving|shocked|stunned|flabbergasted|appalled|horrified|creeped out|spooked|panicked|panic|frantic|rushed|urgent|lazy|lethargic|drunk|tipsy|slurred|high|stoned|dizzy|faint|weak|fragile|vulnerable|brave|bold|heroic|cowardly|timid|meek|obedient|rebellious|defiant|sneaky|devious|calculating|sinister|evil|demonic|angelic|pious|holy|pauses|pause|short pause|long pause|sussurro|sussurrando|grito|gritando|risos|rindo|suspiro|suspirando|triste|melancolico|empolgado|sedutor|ironia|raiva|medo|alegria|calmo|brincalhao|curiosidade|surpresa|cansaco|hesitacao|tosse)\]/gi;
+    const emotionTagsRegex = /\[(joy|joyful|smirk|smirks|smirking|neutral|sad|sadness|sorrow|sorrowful|angry|anger|surprised|surprise|excited|excitement|fear|fearful|disgust|disgusted|sigh|sighs|sighing|laugh|laughs|laughing|laughter|cry|cries|crying|whisper|whispers|whispering|shout|shouts|shouting|flirt|flirting|flirtatious|serious|sarcastic|sarcasm|curious|curiosity|confused|confusion|thoughtful|thinking|giggle|giggles|giggling|groan|groans|groaning|yawn|yawns|yawning|sleepy|shy|embarrassed|embarrassment|hopeful|hope|pain|pained|terror|terrified|anxious|anxiety|bored|boredom|impatient|impatience|grateful|proud|mocking|sympathetic|sympathy|relieved|relief|apologetic|sarcastico|dramatic|cheerful|cheer|cold|warm|happy|happiness|nervous|nervousness|frustrated|frustration|calm|calmness|tired|exhausted|exhaustion|playful|mischievous|sarcastically|whistle|teasing|tease|seductive|seduce|hesitate|hesitates|hesitating|hesitation|stammer|stammers|stammering|stutter|stutters|stuttering|gasp|gasps|gasping|gulp|gulps|gulping|moan|moans|moaning|sob|sobs|sobbing|menacing|smile|smiles|smiling|affectionate|affection|gentle|soft|softly|intense|intensity|wink|winks|winking|blush|blushes|blushing|grin|grins|grinning|chuckle|chuckles|chuckling|kiss|kisses|kissing|hug|hugs|hugging|smacks lips|clears throat|clearing throat|click tongue|tsk|pout|pouts|pouting|frown|frowns|frowning|glare|glares|glaring|scowl|scowls|scowling|shrug|shrugs|shrugging|nod|nods|nodding|shake head|shakes head|tremble|trembles|trembling|shiver|shivers|shivering|pant|pants|panting|breathe|breathes|breathing|sniff|sniffs|sniffing|snort|snorts|snorting|growl|growls|growling|hiss|hisses|hissing|purr|purrs|purring|whine|whines|whining|whimper|whimpers|whimpering|wail|wails|wailing|scream|screams|screaming|yell|yells|yelling|bellow|bellows|bellowing|roar|roars|roaring|mumble|mumbles|mumbling|mutter|mutters|muttering|murmur|murmurs|murmuring|croak|croaks|croaking|rasp|rasps|rasping|wheeze|wheezes|wheezing|snicker|snickers|snickering|cackle|cackles|cackling|jeer|jeers|jeering|scoff|scoffs|scoffing|deadpan|dry|stoic|apathetic|melancholic|nostalgic|euphoric|ecstatic|hysterical|maniacal|deranged|crazy|crazed|insane|psychopathic|murderous|lethal|venomous|bitter|sweet|tender|loving|romantic|lustful|horny|aroused|dominant|submissive|pleading|begging|bossy|commanding|authoritative|arrogant|cocky|smug|condescending|patronizing|defensive|offended|indignant|outraged|furious|livid|enraged|wrathful|jealous|envious|greedy|desperate|despair|heartbroken|devastated|ashamed|guilty|remorseful|pity|mockery|ironic|irony|snarky|cynical|skeptical|doubtful|disbelieving|shocked|stunned|flabbergasted|appalled|horrified|creeped out|spooked|panicked|panic|frantic|rushed|urgent|lazy|lethargic|drunk|tipsy|slurred|high|stoned|dizzy|faint|weak|fragile|vulnerable|brave|bold|heroic|cowardly|timid|meek|obedient|rebellious|defiant|sneaky|devious|calculating|sinister|evil|demonic|angelic|pious|holy|pauses|pause|short pause|long pause|sussurro|sussurrando|grito|gritando|risos|rindo|suspiro|suspirando|triste|melancolico|empolgado|sedutor|ironia|raiva|medo|alegria|calmo|brincalhao|curiosidade|surpresa|cansaco|hesitacao|tosse)\]/gi;
     
     return text.replace(emotionTagsRegex, '');
 }
 
-async function speakText(rawText, button) {
+async function speakText(rawText, button, messageDiv) {
+    if (button.querySelector('.fa-spinner')) {
+        return;
+    }
+
     if (currentAudio) {
         currentAudio.pause();
         currentAudio.currentTime = 0;
@@ -2790,23 +2814,34 @@ async function speakText(rawText, button) {
 
     resetAllTtsButtons();
     currentPlayingTtsBtn = button;
-
     button.innerHTML = "<i class=\"fas fa-spinner fa-spin\"></i>";
     button.disabled = true;
 
+    const messageId = messageDiv?.dataset?.messageId;
+    let targetMessage = null;
+
+    if (messageId && allChats[currentChatId]) {
+        targetMessage = allChats[currentChatId].recentMessages.find(msg => msg.timestamp.toString() === messageId);
+    }
+
+    if (targetMessage && targetMessage.audioData && targetMessage.audioData.length > 150) {
+        playAudioData(targetMessage.audioData, button, targetMessage);
+        return;
+    }
+
     const apiKey = getGeminiApiKey();
     if (!apiKey) {
-        alert("O recurso de Áudio Expressivo requer a Chave de API do Gemini configurada.");
         resetAllTtsButtons();
         currentPlayingTtsBtn = null;
+        showCustomAlert("Chave Ausente", "O recurso de Áudio Expressivo requer a Chave de API do Gemini configurada.");
         return;
     }
 
     const textToSpeak = rawText.trim();
     if (!textToSpeak) {
-        alert("A mensagem não contém texto para gerar áudio.");
         resetAllTtsButtons();
         currentPlayingTtsBtn = null;
+        showCustomAlert("Texto Ausente", "A mensagem não contém texto para gerar áudio.");
         return;
     }
 
@@ -2815,39 +2850,35 @@ async function speakText(rawText, button) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                contents: [{
-                    role: "user",
-                    parts: [{ text: textToSpeak }]
-                }],
+                contents: [{ role: "user", parts: [{ text: textToSpeak }] }],
                 generationConfig: {
                     temperature: 1,
                     responseModalities: ["AUDIO"],
-                    speechConfig: {
-                        voiceConfig: {
-                            prebuiltVoiceConfig: {
-                                voiceName: "Leda"
-                            }
-                        }
-                    }
+                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Leda" } } }
                 }
             })
         });
 
         if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error?.message || "Erro na API Gemini TTS");
+            const errData = await response.json().catch(() => ({}));
+            let errMsg = errData.error?.message || "Erro desconhecido na API TTS";
+            if (response.status === 429) {
+                errMsg = "Cota excedida! Você atingiu o limite de uso gratuito da API do Gemini para hoje.\n\nTente novamente mais tarde.";
+            }
+            throw new Error(errMsg);
         }
 
         const data = await response.json();
         const audioPart = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData && p.inlineData.mimeType.startsWith("audio/"));
 
-        if (!audioPart) {
-            throw new Error("A API não retornou áudio.");
+        if (!audioPart || !audioPart.inlineData || !audioPart.inlineData.data) {
+            throw new Error("A API não retornou nenhum áudio válido.");
         }
 
         const base64Data = audioPart.inlineData.data;
         const mimeType = audioPart.inlineData.mimeType;
         let finalAudioUrl = "";
+        let blobToSave = null;
 
         if (mimeType.includes("pcm")) {
             const binaryString = atob(base64Data);
@@ -2862,9 +2893,7 @@ async function speakText(rawText, button) {
             const view = new DataView(wavBuffer);
 
             const writeString = (view, offset, string) => {
-                for (let i = 0; i < string.length; i++) {
-                    view.setUint8(offset + i, string.charCodeAt(i));
-                }
+                for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
             };
 
             writeString(view, 0, 'RIFF');
@@ -2884,46 +2913,183 @@ async function speakText(rawText, button) {
             const pcmData = new Uint8Array(wavBuffer, 44);
             pcmData.set(bytes);
 
-            const blob = new Blob([wavBuffer], { type: 'audio/wav' });
-            finalAudioUrl = URL.createObjectURL(blob);
-            
+            blobToSave = new Blob([wavBuffer], { type: 'audio/wav' });
+            finalAudioUrl = URL.createObjectURL(blobToSave);
         } else {
             finalAudioUrl = `data:${mimeType};base64,${base64Data}`;
+            if (targetMessage) {
+                targetMessage.audioData = finalAudioUrl;
+                if (typeof saveChatsToPersistence === 'function') saveChatsToPersistence();
+            }
         }
-        
-        currentAudio = new Audio(finalAudioUrl);
 
-        currentAudio.onplay = () => {
-            button.innerHTML = "<i class=\"fas fa-stop\"></i>";
-            button.title = "Parar áudio";
-            button.disabled = false;
-        };
+        playAudioData(finalAudioUrl, button, targetMessage);
 
-        currentAudio.onended = () => {
-            resetAllTtsButtons();
-            currentPlayingTtsBtn = null;
-            currentAudio = null;
-            if (finalAudioUrl.startsWith("blob:")) URL.revokeObjectURL(finalAudioUrl);
-        };
-
-        currentAudio.onerror = (event) => {
-            console.error("Erro na reprodução de voz:", event);
-            resetAllTtsButtons();
-            currentPlayingTtsBtn = null;
-            currentAudio = null;
-            alert("Erro do navegador ao tentar reproduzir o áudio.");
-        };
-
-        await currentAudio.play();
+        if (blobToSave && targetMessage) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                targetMessage.audioData = reader.result;
+                if (typeof saveChatsToPersistence === 'function') saveChatsToPersistence();
+            };
+            reader.readAsDataURL(blobToSave);
+        }
 
     } catch (error) {
-        console.error("Erro na síntese de voz (Gemini API):", error);
-        alert(`Falha ao gerar a voz expressiva: ${error.message}`);
         resetAllTtsButtons();
         currentPlayingTtsBtn = null;
+        if (error.message) {
+            showCustomAlert("Erro de Áudio", error.message);
+        }
     }
 }
 
+function playAudioData(audioDataUrl, button, targetMessage = null) {
+    if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+    }
+
+    currentAudio = new Audio(audioDataUrl);
+    
+    currentAudio.onplay = () => {
+        button.innerHTML = "<i class=\"fas fa-stop\"></i>";
+        button.title = "Parar áudio";
+        button.disabled = false;
+    };
+    
+    currentAudio.onended = () => {
+        resetAllTtsButtons();
+        currentPlayingTtsBtn = null;
+        if (audioDataUrl.startsWith("blob:")) URL.revokeObjectURL(audioDataUrl);
+        currentAudio = null;
+    };
+    
+    currentAudio.onerror = () => {
+        resetAllTtsButtons();
+        currentPlayingTtsBtn = null;
+        currentAudio = null;
+        if (targetMessage && targetMessage.audioData) {
+            targetMessage.audioData = null;
+            if (typeof saveChatsToPersistence === 'function') saveChatsToPersistence();
+        }
+    };
+    
+    currentAudio.play().catch(() => {
+        resetAllTtsButtons();
+        currentPlayingTtsBtn = null;
+        currentAudio = null;
+        if (targetMessage && targetMessage.audioData) {
+            targetMessage.audioData = null;
+            if (typeof saveChatsToPersistence === 'function') saveChatsToPersistence();
+        }
+    });
+}
+
+function showCustomAlert(title, message) {
+    const oldOverlay = document.getElementById('custom-alert-overlay');
+    if (oldOverlay) oldOverlay.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'custom-alert-overlay';
+    overlay.className = 'history-global-edit-overlay';
+    
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+    overlay.style.zIndex = '10000';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.backdropFilter = 'blur(3px)';
+
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .custom-alert-modal {
+            background: #ffffff;
+            color: #1e1e1e;
+            border: 1px solid #ddd;
+        }
+        .custom-alert-subtitle {
+            color: #555;
+        }
+        .custom-alert-btn {
+            background-color: #1e1e1e;
+            color: #ffffff;
+        }
+        
+        @media (prefers-color-scheme: dark) {
+            .custom-alert-modal {
+                background: #1e1e1e;
+                color: #e0e0e0;
+                border: 1px solid #333;
+            }
+            .custom-alert-subtitle {
+                color: #e0e0e0;
+            }
+            .custom-alert-btn {
+                background-color: #f0f0f0;
+                color: #1e1e1e;
+            }
+        }
+        
+        body.dark-mode .custom-alert-modal, body.dark .custom-alert-modal {
+            background: #1e1e1e;
+            color: #e0e0e0;
+            border: 1px solid #333;
+        }
+        body.dark-mode .custom-alert-subtitle, body.dark .custom-alert-subtitle {
+            color: #e0e0e0;
+        }
+        body.dark-mode .custom-alert-btn, body.dark .custom-alert-btn {
+            background-color: #f0f0f0;
+            color: #1e1e1e;
+        }
+    `;
+    overlay.appendChild(style);
+
+    const modalDiv = document.createElement('div');
+    modalDiv.className = 'custom-alert-modal';
+    modalDiv.style.borderRadius = '12px';
+    modalDiv.style.padding = '24px';
+    modalDiv.style.width = '90%';
+    modalDiv.style.maxWidth = '350px';
+    modalDiv.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
+    modalDiv.style.display = 'flex';
+    modalDiv.style.flexDirection = 'column';
+    modalDiv.style.alignItems = 'center';
+    modalDiv.style.textAlign = 'center';
+
+    modalDiv.innerHTML = `
+        <div class="history-modal-title" style="color: #ff6b6b; margin-bottom: 12px; font-size: 1.25rem; font-weight: bold; width: 100%;">${title}</div>
+        <div class="custom-alert-subtitle" style="margin-bottom: 24px; white-space: pre-wrap; font-size: 0.95rem; line-height: 1.5; width: 100%;">${message}</div>
+        <div class="history-modal-actions" style="width: 100%; display: flex; justify-content: center; margin-top: 0;">
+            <button id="custom-alert-ok" class="custom-alert-btn" style="border: none; border-radius: 8px; padding: 12px 0; width: 100%; font-size: 1rem; font-weight: 600; cursor: pointer; transition: opacity 0.2s;">OK</button>
+        </div>
+    `;
+
+    overlay.appendChild(modalDiv);
+    document.body.appendChild(overlay);
+
+    const fecharModal = () => {
+        overlay.style.opacity = '0';
+        overlay.style.transition = 'opacity 0.2s';
+        setTimeout(() => overlay.remove(), 200);
+    };
+
+    const btn = document.getElementById('custom-alert-ok');
+    if (btn) {
+        btn.onclick = fecharModal;
+    }
+    
+    overlay.onclick = (e) => {
+        if (e.target === overlay) {
+            fecharModal();
+        }
+    };
+}
 
 function resetAllTtsButtons() {
     document.querySelectorAll(".tts-btn").forEach(btn => {
@@ -3043,6 +3209,10 @@ function stopVibration() {
 async function loadChatsFromStorageData() {
     const data = await loadChatsFromStorage();
     const sessionChatId = sessionStorage.getItem("session_active_chat_id");
+    const lastActiveChatId = localStorage.getItem("last_active_chat_id");
+    const lastActiveTimestamp = parseInt(localStorage.getItem("last_active_timestamp") || "0", 10);
+    
+    const isResume = (Date.now() - lastActiveTimestamp) < 300000;
 
     if (data && data.allChats) {
         allChats = data.allChats;
@@ -3055,10 +3225,17 @@ async function loadChatsFromStorageData() {
 
     initializeHistory(allChats, saveChatsToPersistence);
 
+    let targetChatId = null;
     if (sessionChatId && allChats[sessionChatId]) {
-        currentChatId = sessionChatId;
+        targetChatId = sessionChatId;
+    } else if (isResume && lastActiveChatId && allChats[lastActiveChatId]) {
+        targetChatId = lastActiveChatId;
+    }
+
+    if (targetChatId) {
+        currentChatId = targetChatId;
         await saveChatsToPersistence();
-        switchToChat(currentChatId);
+        switchToChat(currentChatId, false);
         return;
     }
 
@@ -3080,7 +3257,7 @@ async function loadChatsFromStorageData() {
     }
 
     await saveChatsToPersistence();
-    switchToChat(currentChatId);
+    switchToChat(currentChatId, true);
 }
 
 async function saveChatsToPersistence() {
@@ -3093,7 +3270,8 @@ async function saveChatsToPersistence() {
                     title: allChats[id].title,
                     recentMessages: allChats[id].recentMessages,
                     summarizedContext: allChats[id].summarizedContext || "",
-                    timestamp: allChats[id].timestamp
+                    timestamp: allChats[id].timestamp,
+                    audioData: allChats[id].audioData || null
                 };
             }
         }
@@ -3109,6 +3287,8 @@ async function saveChatsToPersistence() {
             localStorage.setItem("last_active_chat_id", currentChatId);
         }
         
+        localStorage.setItem("last_active_timestamp", Date.now().toString());
+        
         if (apiSourceInput && apiSourceInput.value) {
             localStorage.setItem("api_source_preference", apiSourceInput.value);
         }
@@ -3118,7 +3298,7 @@ async function saveChatsToPersistence() {
         }
 
     } catch (e) {
-        console.error("Erro ao salvar chats na persistência:", e);
+        console.error(e);
     }
 }
 
