@@ -1,3 +1,5 @@
+// history.js
+
 const MAX_HISTORY_TOKENS = 200000;
 let allChats = {};
 let saveChatsTrigger;
@@ -27,6 +29,7 @@ export function addMessageToHistory(chatId, messageObject) {
     }
     allChats[chatId].recentMessages.push(messageObject);
     allChats[chatId].timestamp = Date.now();
+    triggerContextMaintenance(chatId);
     scheduleSave();
 }
 
