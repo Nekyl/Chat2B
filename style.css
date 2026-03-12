@@ -2095,11 +2095,11 @@ body {
     }
 
     .top-bar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 8px 10px;
-        gap: 8px;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: intercourse !important;
+        gap: 4px !important;
+        padding: 8px 5px !important;
     }
 
     .mobile-menu-btn,
@@ -2125,8 +2125,22 @@ body {
         width: 100%;
         min-width: 0;
         font-size: 0.85rem;
+        flex: 2 !important;
+        min-width: 100px !important;
     }
-
+    
+    #install-pwa-btn, 
+    #app-settings-btn {
+        flex-shrink: 0 !important; 
+        width: 38px !important;
+        height: 40px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        display: inline-flex; /* Removemos o !important daqui */
+        justify-content: center;
+        align-items: center;
+    }
+    
     .custom-model-selector {
         width: 100%;
         min-width: 0;
