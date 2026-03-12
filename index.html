@@ -110,7 +110,6 @@
       }
       .manual-model-container {
           display: none;
-          margin-top: 5px;
       }
       .manual-model-container.active {
           display: block;
@@ -140,10 +139,22 @@
           <input class="server-url-input" id="api-source-input" placeholder="Provedor (gemini, openai, groq...) ou URL" type="text" value="Gemini" style="width: 100%;"/>
       </div>
       
-      <div class="model-select-wrapper" style="flex: 1; margin: 0 10px; position: relative; display: flex; flex-direction: column;">
-          <select class="model-selector" id="model-select" style="width: 100%; margin: 0;">
-            <option value="">Carregando modelos...</option>
-          </select>
+      <div class="model-select-wrapper" style="flex: 1; margin: 0 10px; position: relative; display: flex; flex-direction: column; min-width: 0;">
+    <div class="custom-model-selector" id="custom-model-selector">
+        <div class="custom-model-display" id="custom-model-display">
+            <span id="custom-model-name">Carregando modelos...</span>
+            <i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="custom-model-dropdown" id="custom-model-dropdown">
+            <div class="custom-model-search-container">
+                <i class="fas fa-search"></i>
+                <input type="text" id="custom-model-search" placeholder="Buscar modelo..." autocomplete="off">
+            </div>
+            <div class="custom-model-list" id="custom-model-list"></div>
+        </div>
+    </div>
+    <select class="model-selector" id="model-select" style="display: none !important;"></select>
+    
           <div class="manual-model-container" id="manual-model-container" style="display: none; width: 100%;">
               <input type="text" id="manual-model-input" placeholder="Nome exato do modelo..." style="width: 100%; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: white;">
           </div>
@@ -252,16 +263,16 @@
         </div>
         
         <div class="setting-item" id="dynamic-api-key-container">
-  <label id="dynamic-api-key-label" for="global-api-key-input">Chave API:</label>
-  <div class="api-key-input-container" style="margin-top: 5px;">
-    <input id="global-api-key-input" type="password" placeholder="Sua chave de API aqui..." />
-    <span id="global-api-key-display" style="display: none;"></span>
-    <button id="api-key-toggle-btn" type="button" title="Mostrar/Ocultar Chave">
-      <i class="fas fa-eye"></i>
-    </button>
-  </div>
-  <small style="color: #888; margin-top: 5px; display: block;">A chave salva aqui é atrelada à API selecionada na barra superior.</small>
-</div>
+          <label id="dynamic-api-key-label" for="global-api-key-input">Chave API:</label>
+          <div class="api-key-input-container" style="margin-top: 5px;">
+            <input id="global-api-key-input" type="password" placeholder="Sua chave de API aqui..." />
+            <span id="global-api-key-display" style="display: none;"></span>
+            <button id="api-key-toggle-btn" type="button" title="Mostrar/Ocultar Chave">
+              <i class="fas fa-eye"></i>
+            </button>
+          </div>
+          <small style="color: #888; margin-top: 5px; display: block;">A chave salva aqui é atrelada à API selecionada na barra superior.</small>
+        </div>
         
         <div id="settings-feedback"></div>
       </div>

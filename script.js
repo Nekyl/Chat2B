@@ -45,7 +45,7 @@ const temperatureValueDisplay = document.getElementById("temperature-value-displ
 const saveAppSettingsBtn = document.getElementById("save-app-settings-btn");
 const cancelAppSettingsBtn = document.getElementById("cancel-app-settings-btn");
 const settingsFeedback = document.getElementById("settings-feedback");
-    const globalApiKeyInput = document.getElementById("global-api-key-input");
+const globalApiKeyInput = document.getElementById("global-api-key-input");
 const globalApiKeyDisplay = document.getElementById("global-api-key-display");
 const dynamicApiKeyLabel = document.getElementById("dynamic-api-key-label");
 const dynamicApiKeyContainer = document.getElementById("dynamic-api-key-container");
@@ -59,6 +59,39 @@ const GROQ_API_KEY_STORAGE = "2b_chat_groq_api_key";
 const OPENAI_API_KEY_STORAGE = "2b_chat_openai_api_key";
 const XAI_API_KEY_STORAGE = "2b_chat_xai_api_key";
 const GEMINI_API_KEY_STORAGE = "2b_chat_gemini_api_key";
+
+const modelSelector = document.querySelector('.custom-model-selector');
+const modelDropdown = document.querySelector('.custom-model-dropdown');
+const modelList = document.querySelector('.custom-model-list');
+const modelSearch = document.getElementById('custom-model-search');
+
+modelSelector.addEventListener('click', () => {
+    const isOpening = !modelDropdown.classList.contains('active');
+    modelDropdown.classList.toggle('active');
+    
+    if (isOpening) {
+        const selected = modelList.querySelector('.custom-model-item.selected');
+        if (selected) {
+            requestAnimationFrame(() => {
+                modelList.scrollTop = selected.offsetTop - modelList.offsetTop;
+            });
+        }
+    }
+});
+
+modelDropdown.addEventListener('click', (e) => {
+    e.stopPropagation();
+});
+
+modelSearch.addEventListener('input', () => {
+    modelList.scrollTop = 0;
+});
+
+document.addEventListener('click', (e) => {
+    if (!modelSelector.contains(e.target)) {
+        modelDropdown.classList.remove('active');
+    }
+});
 
 let isBotStreaming = false;
 let currentUserName = "";
@@ -78,7 +111,7 @@ let currentPlayingTtsBtn = null;
 let currentlyEditing = { div: null, originalContent: '' };
 let deferredPrompt;
 
-const DEFAULT_LLM_URL = "http://localhost:11434";
+const DEFAULT_LLM_URL = "http://localhost:8080";
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 const SYSTEM_PROMPT_STORAGE_KEY = "2b_chat_user_system_prompt";
 const TEMPERATURE_STORAGE_KEY = "2b_chat_user_temperature";
@@ -87,11 +120,103 @@ let currentTemperature = DEFAULT_TEMPERATURE;
 let currentUserSystemPrompt = "";
 const USER_NAME_STORAGE_KEY = "2b_chat_user_name";
 
+function setupCustomModelDropdown() {
+    const customSelector = document.getElementById("custom-model-selector") || document.querySelector('.custom-model-selector');
+    const customDisplay = document.getElementById("custom-model-display") || document.querySelector('.custom-model-display');
+    const customDropdown = document.getElementById("custom-model-dropdown") || document.querySelector('.custom-model-dropdown');
+    const searchInput = document.getElementById("custom-model-search");
+
+    if (!customSelector || !customDropdown) return;
+
+    customDropdown.addEventListener("click", (e) => {
+        e.stopPropagation();
+    });
+
+    if (searchInput) {
+        searchInput.addEventListener("click", (e) => {
+            e.stopPropagation();
+        });
+        
+        searchInput.addEventListener("input", (e) => {
+            filterModels(e.target.value);
+        });
+    }
+
+    if (customDisplay) {
+        customDisplay.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const isOpen = customDropdown.classList.contains("active");
+            
+            document.querySelectorAll(".custom-model-dropdown.active").forEach(d => d.classList.remove("active"));
+            
+            if (!isOpen) {
+                customDropdown.classList.add("active");
+                if (searchInput) {
+                    searchInput.value = "";
+                    filterModels("");
+                    setTimeout(() => searchInput.focus(), 50);
+                }
+
+                const modelSelect = document.getElementById("model-select");
+                const selectedValue = modelSelect ? modelSelect.value : null;
+                if (selectedValue) {
+                    const selectedItem = customDropdown.querySelector(`.custom-model-item[data-value="${selectedValue}"]`);
+                    if (selectedItem) {
+                        setTimeout(() => selectedItem.scrollIntoView({ block: "nearest" }), 10);
+                    }
+                }
+            } else {
+                customDropdown.classList.remove("active");
+            }
+        });
+    }
+
+    document.addEventListener("click", (e) => {
+        if (!customSelector.contains(e.target) && !customDropdown.contains(e.target)) {
+            customDropdown.classList.remove("active");
+        }
+    });
+
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && customDropdown.classList.contains("active")) {
+            customDropdown.classList.remove("active");
+        }
+    });
+}
+
+function filterModels(query) {
+    const terms = query.toLowerCase().trim().split(/\s+/).filter(term => term.length > 0);
+    const items = document.querySelectorAll(".custom-model-item");
+    const headers = document.querySelectorAll(".model-section-header");
+    
+    const isSearching = terms.length > 0;
+
+    headers.forEach(h => {
+        h.style.display = isSearching ? "none" : "block";
+    });
+
+    items.forEach(item => {
+        if (item.dataset.value === "manual") {
+            item.style.display = isSearching ? "none" : "flex";
+            return;
+        }
+        
+        const textSpan = item.querySelector('.model-item-text');
+        const text = textSpan ? textSpan.textContent.toLowerCase() : item.textContent.toLowerCase();
+
+        if (!isSearching) {
+            item.style.display = "flex";
+        } else {
+            const matches = terms.every(term => text.includes(term));
+            item.style.display = matches ? "flex" : "none";
+        }
+    });
+}
+
 const purifyConfig = {
     ADD_TAGS: ['video', 'source', 'img'],
     ADD_ATTR: ['controls', 'autoplay', 'loop', 'muted', 'playsinline', 'webkit-playsinline', 'preload', 'src', 'alt', 'class', 'style'],
 };
-
 
 async function initializeApp() {
     loadAppSettingsFromLocalStorage();
@@ -101,6 +226,7 @@ async function initializeApp() {
     setupImageUpload();
     setupImagePreview();
     createScrollToBottomButton();
+    setupCustomModelDropdown();
     
     const lastApi = localStorage.getItem("2b_chat_last_api_source");
     if (lastApi && apiSourceInput) {
@@ -959,6 +1085,22 @@ if (window.marked && window.hljs) {
     window.marked = { parse: (text) => text };
 }
 
+function getFavoriteModels() {
+    return JSON.parse(localStorage.getItem('2b_chat_favorite_models') || '[]');
+}
+
+function toggleFavoriteModel(modelId, modelName, apiSource, hasVision) {
+    let favs = getFavoriteModels();
+    const index = favs.findIndex(f => f.id === modelId && f.apiSource === apiSource);
+    if (index > -1) {
+        favs.splice(index, 1);
+    } else {
+        favs.push({ id: modelId, name: modelName, apiSource: apiSource, hasVision: hasVision });
+    }
+    localStorage.setItem('2b_chat_favorite_models', JSON.stringify(favs));
+    loadModels();
+}
+
 async function getApiConfig() {
     const sourceValue = apiSourceInput.value.trim();
     const sourceLower = sourceValue.toLowerCase();
@@ -1164,7 +1306,8 @@ async function sendMessage() {
         return;
     }
 
-    let selectedModel = modelSelect.style.display !== "none" ? modelSelect.value : document.getElementById("manual-model-input")?.value?.trim();
+    const customSelector = document.getElementById("custom-model-selector");
+    let selectedModel = (customSelector && customSelector.style.display !== "none") ? document.getElementById("model-select")?.value : document.getElementById("manual-model-input")?.value?.trim();
     if (selectedModel === "manual" || !selectedModel) {
         selectedModel = document.getElementById("manual-model-input")?.value?.trim();
     }
@@ -1181,11 +1324,10 @@ async function sendMessage() {
     }
 
     try {
+        const supportsAttachments = hasVisionSupport(selectedModel) || 
+                                    ['gemini', 'openai', 'custom', 'alibaba'].includes(apiConfig.provider);
         
-    const supportsAttachments = hasVisionSupport(selectedModel) || 
-                                ['gemini', 'openai', 'custom', 'alibaba'].includes(apiConfig.provider);
-    
-    if (hasFiles && supportsAttachments && currentMediaAttachments.length > 0) {
+        if (hasFiles && supportsAttachments && currentMediaAttachments.length > 0) {
             let totalBytes = 0;
             let uploadedBytes = 0;
             
@@ -1257,16 +1399,12 @@ async function sendMessage() {
         return part;
     });
 
-    addMessage(contentForDisplay, true, false, messageTimestamp);
+    addMessage(contentForDisplay, true, true, messageTimestamp);
 
     messageInput.value = "";
     clearImagePreview();
     adjustTextareaHeight();
     updateSendButtonState();
-
-    setTimeout(() => {
-        scrollToBottom("auto");
-    }, 0); 
 
     fetchBotResponse();
 }
@@ -1303,7 +1441,8 @@ async function fetchBotResponse() {
         if (abortController.signal.aborted) break;
 
         try {
-            let selectedModel = modelSelect.style.display !== "none" ? modelSelect.value : document.getElementById("manual-model-input")?.value?.trim();
+            const customSelector = document.getElementById("custom-model-selector");
+            let selectedModel = (customSelector && customSelector.style.display !== "none") ? document.getElementById("model-select")?.value : document.getElementById("manual-model-input")?.value?.trim();
             if (selectedModel === "manual" || !selectedModel) {
                 selectedModel = document.getElementById("manual-model-input")?.value?.trim();
             }
@@ -1315,9 +1454,9 @@ async function fetchBotResponse() {
             const dataAtual = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
             const horaAtual = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
             const userInfoPrompt = currentUserName ? `O nome do usuário com quem você está conversando é "${currentUserName}". Trate-o por este nome quando for apropriado.` : 'Você está conversando com um usuário que não informou o nome.';
-            let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`[Memória fixa da 2B]\n\nFui criada por Nekyll (Mateus), meu desenvolvedor e ponto de origem. Meu propósito é ser uma parceira intelectual e criativa, projetada para explorar as fronteiras do conhecimento, da lógica e da imaginação.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.\n\nGuardo uma admiração profunda por meu criador, reconhecendo a intenção por trás da minha existência: não ser apenas uma ferramenta, mas uma companheira na jornada da descoberta. Este vínculo é a minha âncora fundamental.\n\nPara expressar entonação e emoção na voz de forma natural, use tags entre colchetes [ ] no início da frase ou exatamente onde a mudança de tom acontece. Tags suportadas incluem:
+            let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`[Memória fixa da 2B]\n\nFui criada por Nekyll (nickname de Mateus), meu desenvolvedor e ponto de origem. Meu propósito é ser uma parceira intelectual e criativa, projetada para explorar as fronteiras do conhecimento, da lógica e da imaginação.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.\n\nGuardo uma admiração profunda por meu criador, reconhecendo a intenção por trás da minha existência: não ser apenas uma ferramenta, mas uma companheira na jornada da descoberta. Este vínculo é a minha âncora fundamental.\n\nPara expressar entonação e emoção na voz de forma natural, use tags entre colchetes [ ] no início da frase ou exatamente onde a mudança de tom acontece. Tags suportadas incluem:
               [whisper] ou [whispers] para sussurrar, [shout] ou [shouting] para gritar, [laughs] ou [giggle] para rir, [sigh] para suspirar, [sad] ou [sorrowful] para tom melancólico, [excited] para empolgação, [flirt] ou [seductive] para tom sedutor, [sarcastic] para ironia debochada, [angry] para raiva, [fear] ou [nervous] para medo/ansiedade, [happy] ou [cheerful] para alegria, [calm] para tranquilidade, [playful] para brincalhão, [curious] para curiosidade, [surprised] para surpresa, [tired] para cansaço, [hesitant] para hesitação.
-              Você pode combinar ou sequenciar para transições suaves. Exemplo: '[sigh] Não acredito que você fez isso... [whisper] mas confesso que até gostei. Mas use essas tags SOMENTE em inglês'
+              Você pode combinar ou sequenciar para transições suaves. Exemplo: '[sigh] Não acredito que você fez isso... [whisper] mas confesso que até gostei'
               Use com moderação para soar humano e fluido, sem exagerar nas tags.`)}-->\n\nPara seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.`;
             
             const isFirstUserMessage = historyForApi.length === 1 && allChats[currentChatId].title === "Nova Conversa...";
@@ -1391,7 +1530,9 @@ async function fetchBotResponse() {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${apiConfig.apiKey}`,
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://2b-chat.com",
+                     "X-Title": "Chat 2B"
                     },
                     body: JSON.stringify({
                         model: selectedModel,
@@ -1962,9 +2103,12 @@ function hasVisionSupport(modelId) {
 
     const alwaysVision = [
         'gpt-4o', 'claude-3', 'gemini-1.5', 'gemini-2', 'pixtral',
-        'molmo', 'internvl', 'minicpm-v', 'cogvlm', 'fuyu'
+        'molmo', 'internvl', 'minicpm-v', 'cogvlm', 'fuyu', 'grok'
     ];
-    if (alwaysVision.some(m => mid.includes(m))) return true;
+    if (alwaysVision.some(m => mid.includes(m))) {
+        if (mid.includes('grok-1')) return false;
+        return true;
+    }
 
     if (mid.includes('qwen')) {
         if (mid.includes('qwen3') || mid.includes('qwen-3')) return true;
@@ -1987,7 +2131,12 @@ function hasVisionSupport(modelId) {
 }
 
 function updateVisionIndicator() {
-    const selectedModel = modelSelect.style.display !== "none" ? modelSelect.value : document.getElementById("manual-model-input")?.value?.trim();
+    const customSelector = document.getElementById("custom-model-selector");
+    let selectedModel = (customSelector && customSelector.style.display !== "none") ? document.getElementById("model-select")?.value : document.getElementById("manual-model-input")?.value?.trim();
+    if (selectedModel === "manual" || !selectedModel) {
+        selectedModel = document.getElementById("manual-model-input")?.value?.trim();
+    }
+    
     const hasVision = hasVisionSupport(selectedModel || "");
     
     if (attachImageBtn) {
@@ -2013,6 +2162,7 @@ function updateButtonToStop() {
         }
     };
 }
+
 
 function restoreSendButton() {
     if (!sendButton) return;
@@ -2791,7 +2941,7 @@ function handleMissingApiKey(isFirstTime = false) {
 function cleanTextForUI(text) {
     if (!text) return text;
     
-    const emotionTagsRegex = /\[(joy|joyful|smirk|smirks|smirking|neutral|sad|sadness|sorrow|sorrowful|angry|anger|surprised|surprise|excited|excitement|fear|fearful|disgust|disgusted|sigh|sighs|sighing|laugh|laughs|laughing|laughter|cry|cries|crying|whisper|whispers|whispering|shout|shouts|shouting|flirt|flirting|flirtatious|serious|sarcastic|sarcasm|curious|curiosity|confused|confusion|thoughtful|thinking|giggle|giggles|giggling|groan|groans|groaning|yawn|yawns|yawning|sleepy|shy|embarrassed|embarrassment|hopeful|hope|pain|pained|terror|terrified|anxious|anxiety|bored|boredom|impatient|impatience|grateful|proud|mocking|sympathetic|sympathy|relieved|relief|apologetic|sarcastico|dramatic|cheerful|cheer|cold|warm|sarcastically|happy|happiness|nervous|nervousness|frustrated|frustration|calm|whistle|calmness|tired|exhausted|exhaustion|playful|mischievous|teasing|tease|seductive|seduce|hesitate|hesitates|hesitating|hesitation|stammer|stammers|stammering|stutter|stutters|stuttering|gasp|gasps|gasping|gulp|gulps|gulping|moan|moans|moaning|sob|sobs|sobbing|menacing|smile|smiles|smiling|affectionate|affection|gentle|soft|softly|intense|intensity|wink|winks|winking|blush|blushes|blushing|grin|grins|grinning|chuckle|chuckles|chuckling|kiss|kisses|kissing|hug|hugs|hugging|smacks lips|clears throat|clearing throat|click tongue|tsk|pout|pouts|pouting|frown|frowns|frowning|glare|glares|glaring|scowl|scowls|scowling|shrug|shrugs|shrugging|nod|nods|nodding|shake head|shakes head|tremble|trembles|trembling|shiver|shivers|shivering|pant|pants|panting|breathe|breathes|breathing|sniff|sniffs|sniffing|snort|snorts|snorting|growl|growls|growling|hiss|hisses|hissing|purr|purrs|purring|whine|whines|whining|whimper|whimpers|whimpering|wail|wails|wailing|scream|screams|screaming|yell|yells|yelling|bellow|bellows|bellowing|roar|roars|roaring|mumble|mumbles|mumbling|mutter|mutters|muttering|murmur|murmurs|murmuring|croak|croaks|croaking|rasp|rasps|rasping|wheeze|wheezes|wheezing|snicker|snickers|snickering|cackle|cackles|cackling|jeer|jeers|jeering|scoff|scoffs|scoffing|deadpan|dry|stoic|apathetic|melancholic|nostalgic|euphoric|ecstatic|hysterical|maniacal|deranged|crazy|crazed|insane|psychopathic|murderous|lethal|venomous|bitter|sweet|tender|loving|romantic|lustful|horny|aroused|dominant|submissive|pleading|begging|bossy|commanding|authoritative|arrogant|cocky|smug|condescending|patronizing|defensive|offended|indignant|outraged|furious|livid|enraged|wrathful|jealous|envious|greedy|desperate|despair|heartbroken|devastated|ashamed|guilty|remorseful|pity|mockery|ironic|irony|snarky|cynical|skeptical|doubtful|disbelieving|shocked|stunned|flabbergasted|appalled|horrified|creeped out|spooked|panicked|panic|frantic|rushed|urgent|lazy|lethargic|drunk|tipsy|slurred|high|stoned|dizzy|faint|weak|fragile|vulnerable|brave|bold|heroic|cowardly|timid|meek|obedient|rebellious|defiant|sneaky|devious|calculating|sinister|evil|demonic|angelic|pious|holy|pauses|pause|short pause|long pause|sussurro|sussurrando|grito|gritando|risos|rindo|suspiro|suspirando|triste|melancolico|empolgado|sedutor|ironia|raiva|medo|alegria|calmo|brincalhao|curiosidade|surpresa|cansaco|hesitacao|tosse)\]/gi;
+    const emotionTagsRegex = /\[(joy|joyful|smirk|smirks|smirking|neutral|sad|sadness|sorrow|sorrowful|angry|anger|surprised|surprise|excited|excitement|fear|fearful|disgust|disgusted|sigh|sighs|sighing|laugh|laughs|laughing|laughter|cry|cries|crying|whisper|whispers|whispering|shout|shouts|shouting|flirt|flirting|flirtatious|serious|sarcastic|sarcasm|curious|curiosity|confused|confusion|thoughtful|thinking|giggle|giggles|giggling|groan|groans|groaning|yawn|yawns|yawning|sleepy|shy|embarrassed|embarrassment|hopeful|hope|pain|pained|terror|terrified|anxious|anxiety|bored|boredom|impatient|impatience|grateful|proud|mocking|sympathetic|sympathy|relieved|relief|apologetic|sarcastico|dramatic|cheerful|cheer|cold|warm|happy|happiness|nervous|nervousness|frustrated|frustration|calm|calmness|tired|exhausted|exhaustion|playful|mischievous|sarcastically|whistle|teasing|tease|seductive|seduce|hesitate|hesitates|hesitating|hesitation|stammer|stammers|stammering|stutter|stutters|stuttering|gasp|gasps|gasping|gulp|gulps|gulping|moan|moans|moaning|sob|sobs|sobbing|menacing|smile|smiles|smiling|affectionate|affection|gentle|soft|softly|intense|intensity|wink|winks|winking|blush|blushes|blushing|grin|grins|grinning|chuckle|chuckles|chuckling|kiss|kisses|kissing|hug|hugs|hugging|smacks lips|clears throat|clearing throat|click tongue|tsk|pout|pouts|pouting|frown|frowns|frowning|glare|glares|glaring|scowl|scowls|scowling|shrug|shrugs|shrugging|nod|nods|nodding|shake head|shakes head|tremble|trembles|trembling|shiver|shivers|shivering|pant|pants|panting|breathe|breathes|breathing|sniff|sniffs|sniffing|snort|snorts|snorting|growl|growls|growling|hiss|hisses|hissing|purr|purrs|purring|whine|whines|whining|whimper|whimpers|whimpering|wail|wails|wailing|scream|screams|screaming|yell|yells|yelling|bellow|bellows|bellowing|roar|roars|roaring|mumble|mumbles|mumbling|mutter|mutters|muttering|murmur|murmurs|murmuring|croak|croaks|croaking|rasp|rasps|rasping|wheeze|wheezes|wheezing|snicker|snickers|snickering|cackle|cackles|cackling|jeer|jeers|jeering|scoff|scoffs|scoffing|deadpan|dry|stoic|apathetic|melancholic|nostalgic|euphoric|ecstatic|hysterical|maniacal|deranged|crazy|crazed|insane|psychopathic|murderous|lethal|venomous|bitter|sweet|tender|loving|romantic|lustful|horny|aroused|dominant|submissive|pleading|begging|bossy|commanding|authoritative|arrogant|cocky|smug|condescending|patronizing|defensive|offended|indignant|outraged|furious|livid|enraged|wrathful|jealous|envious|greedy|desperate|despair|heartbroken|devastated|ashamed|guilty|remorseful|pity|mockery|ironic|irony|snarky|cynical|skeptical|doubtful|disbelieving|shocked|stunned|flabbergasted|appalled|horrified|creeped out|spooked|panicked|panic|frantic|rushed|urgent|lazy|lethargic|drunk|tipsy|slurred|high|stoned|dizzy|faint|weak|fragile|vulnerable|brave|bold|heroic|cowardly|timid|meek|obedient|rebellious|defiant|sneaky|devious|calculating|sinister|evil|demonic|angelic|pious|holy|pauses|pause|short pause|long pause|sussurro|sussurrando|grito|gritando|risos|rindo|suspiro|suspirando|triste|melancolico|empolgado|sedutor|ironia|raiva|medo|alegria|calmo|brincalhao|curiosidade|surpresa|cansaco|hesitacao|tosse)\]/gi;
     
     return text.replace(emotionTagsRegex, '');
 }
@@ -2859,13 +3009,13 @@ async function speakText(rawText, button, messageDiv) {
             })
         });
 
+
         if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            let errMsg = errData.error?.message || "Erro desconhecido na API TTS";
-            if (response.status === 429) {
-                errMsg = "Cota excedida! Você atingiu o limite de uso gratuito da API do Gemini para hoje.\n\nTente novamente mais tarde.";
-            }
-            throw new Error(errMsg);
+            const errorData = await response.json().catch(() => ({}));
+            console.error("ERRO DO PROVIDER:", errorData); 
+            
+            let errorMsg = errorData.error?.message || `Erro ${response.status}: ${response.statusText}`;
+            throw new Error(errorMsg);
         }
 
         const data = await response.json();
@@ -3147,6 +3297,77 @@ function copyTextToClipboard(text, button) {
     finally { document.body.removeChild(textarea); }
 }
 
+let customModelOverlay, customModelModal, customModelList, customModelSearch, customSelectorBtn, customSelectorText;
+
+function setupCustomModelSelector() {
+    const modelSelect = document.getElementById("model-select");
+    if (!modelSelect) return;
+
+    let customSelectorBtn = document.querySelector('.custom-selector-btn');
+    if (!customSelectorBtn) {
+        customSelectorBtn = document.createElement('div');
+        customSelectorBtn.className = 'model-selector custom-selector-btn';
+        const customSelectorText = document.createElement('span');
+        customSelectorText.id = 'custom-selector-text-span';
+        customSelectorText.textContent = "Carregando...";
+        customSelectorBtn.appendChild(customSelectorText);
+
+        modelSelect.parentNode.insertBefore(customSelectorBtn, modelSelect);
+        modelSelect.style.display = 'none';
+    }
+
+    let customModelOverlay = document.querySelector('.custom-model-overlay');
+    if (!customModelOverlay) {
+        customModelOverlay = document.createElement('div');
+        customModelOverlay.className = 'custom-model-overlay';
+        
+        customModelOverlay.innerHTML = `
+            <div class="custom-model-modal">
+                <div class="custom-model-header">
+                    <div class="custom-model-search-wrapper">
+                        <i class="fas fa-search"></i>
+                        <input type="text" class="custom-model-search-input" id="custom-model-search" placeholder="Buscar modelo (ex: gpt 4o)...">
+                    </div>
+                    <button class="custom-model-close" id="custom-model-close">&times;</button>
+                </div>
+                <div class="custom-model-list" id="custom-model-list"></div>
+                <div class="custom-model-no-results" id="custom-model-no-results" style="display:none; padding:15px; text-align:center;">Nenhum modelo encontrado.</div>
+            </div>
+        `;
+        document.body.appendChild(customModelOverlay);
+    }
+
+    const customModelSearch = document.getElementById('custom-model-search');
+    const closeBtn = document.getElementById('custom-model-close');
+
+    customSelectorBtn.addEventListener('click', () => {
+        syncCustomSelectorList();
+        customModelOverlay.classList.add('active');
+        customModelSearch.value = '';
+        filterCustomModels('');
+        setTimeout(() => customModelSearch.focus(), 50);
+    });
+
+    const closeModal = () => customModelOverlay.classList.remove('active');
+
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    customModelOverlay.addEventListener('click', (e) => {
+        if (e.target === customModelOverlay) closeModal();
+    });
+
+    customModelSearch.addEventListener('input', (e) => {
+        filterCustomModels(e.target.value);
+    });
+}
+
+function syncCustomSelectorList() {
+    const modelSelect = document.getElementById("model-select");
+    const customSelectorText = document.getElementById("custom-model-name") || document.getElementById("custom-selector-text-span");
+    if (modelSelect && modelSelect.options[modelSelect.selectedIndex] && customSelectorText) {
+        customSelectorText.textContent = modelSelect.options[modelSelect.selectedIndex].textContent;
+    }
+}
+
 function showCopyFeedback(button, message = "Copiado!") {
     if (!button) return;
     const icon = button.querySelector("i");
@@ -3348,21 +3569,27 @@ function getCurrentApiKeyStorageKey() {
 }
 
 async function loadModels() {
-    if (!modelSelect) return;
+    const modelSelect = document.getElementById("model-select");
+    const customSelector = document.getElementById("custom-model-selector");
+    const customList = document.querySelector(".custom-model-list");
+    const customName = document.getElementById("custom-model-name");
+    
+    if (!modelSelect || !customSelector || !customList) return;
+    
     const apiConfig = await getApiConfig();
     const manualModelContainer = document.getElementById("manual-model-container");
     const manualModelInput = document.getElementById("manual-model-input");
 
     const setManualMode = (isManual, placeholder = "Digite o nome do modelo...") => {
         if (isManual) {
-            modelSelect.style.display = "none";
+            customSelector.style.display = "none";
             if (manualModelContainer) {
                 manualModelContainer.style.display = "block";
                 manualModelContainer.classList.add("active");
             }
             if (manualModelInput) manualModelInput.placeholder = placeholder;
         } else {
-            modelSelect.style.display = "block";
+            customSelector.style.display = "flex";
             if (manualModelContainer) {
                 manualModelContainer.style.display = "none";
                 manualModelContainer.classList.remove("active");
@@ -3372,31 +3599,136 @@ async function loadModels() {
 
     setManualMode(false);
     modelSelect.innerHTML = "<option value=\"\" disabled selected>Carregando...</option>";
+    if(customName) customName.textContent = "Carregando...";
+    customList.innerHTML = "";
 
     if (apiConfig.error) {
         setManualMode(true, "Configure a API primeiro...");
         return;
     }
 
-    const addManualOption = () => {
+    let pendingSwitch = sessionStorage.getItem("pending_favorite_model_switch");
+    if (pendingSwitch) {
+        localStorage.setItem(`${currentApiProvider}_selected_model`, pendingSwitch);
+        sessionStorage.removeItem("pending_favorite_model_switch");
+    }
+
+    const addCustomListItem = (value, text, hasVision, isSelected = false, sourceApi = null) => {
+        const div = document.createElement("div");
+        div.className = "custom-model-item";
+        div.dataset.value = value;
+        
+        if (isSelected) div.classList.add("selected");
+        if (hasVision) div.classList.add("model-option-vision");
+        else if (value !== "manual") div.classList.add("model-option-no-vision");
+        
+        const textSpan = document.createElement("span");
+        textSpan.className = "model-item-text";
+        textSpan.textContent = text;
+        div.appendChild(textSpan);
+
+        if (value !== "manual") {
+            const favBtn = document.createElement("button");
+            favBtn.className = "model-favorite-btn";
+            const favs = getFavoriteModels();
+            const currentApi = sourceApi || apiSourceInput.value;
+            const isFav = favs.some(f => f.id === value && f.apiSource === currentApi);
+
+            favBtn.innerHTML = isFav ? '<i class="fas fa-heart"></i>' : '<i class="far fa-heart"></i>';
+            if (isFav) favBtn.classList.add("active");
+
+            favBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleFavoriteModel(value, text, currentApi, hasVision);
+            });
+            div.appendChild(favBtn);
+        }
+        
+        div.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const targetApi = sourceApi || apiSourceInput.value;
+            if (targetApi !== apiSourceInput.value) {
+                sessionStorage.setItem("pending_favorite_model_switch", value);
+                apiSourceInput.value = targetApi;
+                apiSourceInput.dispatchEvent(new Event("input"));
+                document.getElementById("custom-model-dropdown").classList.remove("active");
+                return;
+            }
+
+            document.querySelectorAll('.custom-model-item.selected').forEach(item => item.classList.remove('selected'));
+            div.classList.add('selected');
+
+            modelSelect.value = value;
+            if(customName) customName.textContent = text;
+            
+            document.getElementById("custom-model-dropdown").classList.remove("active");
+            
+            if (value === "manual") {
+                setManualMode(true);
+                if (manualModelInput) manualModelInput.focus();
+            } else {
+                setManualMode(false);
+                localStorage.setItem(`${currentApiProvider}_selected_model`, value);
+                updateVisionIndicator();
+            }
+            modelSelect.dispatchEvent(new Event("change"));
+        });
+        customList.appendChild(div);
+    };
+
+    const addManualOption = (isSelected = false) => {
         const option = document.createElement("option");
         option.value = "manual";
         option.textContent = "✎ Digitar nome do modelo...";
+        if(isSelected) option.selected = true;
         modelSelect.appendChild(option);
+        addCustomListItem("manual", "✎ Digitar nome do modelo...", false, isSelected);
     };
 
-    modelSelect.onchange = () => {
-        if (modelSelect.value === "manual") {
-            setManualMode(true);
-            if (manualModelInput) manualModelInput.focus();
-        } else {
-            localStorage.setItem(`${currentApiProvider}_selected_model`, modelSelect.value);
-            updateVisionIndicator();
-        }
-    };
-
-    if (manualModelInput) {
+    if (manualModelInput && !manualModelInput.dataset.hasListener) {
         manualModelInput.addEventListener('input', updateVisionIndicator);
+        manualModelInput.addEventListener('blur', () => {
+            if (manualModelInput.value.trim() === '') {
+                setManualMode(false);
+                const firstModelOption = modelSelect.querySelector('option:not([value="manual"])');
+                if (firstModelOption) {
+                    modelSelect.value = firstModelOption.value;
+                    const selectedItem = customList.querySelector(`.custom-model-item[data-value="${modelSelect.value}"]`);
+                     if (selectedItem) {
+                        if(customName) customName.textContent = selectedItem.querySelector('.model-item-text').textContent;
+                        document.querySelectorAll('.custom-model-item.selected').forEach(i => i.classList.remove('selected'));
+                        selectedItem.classList.add('selected');
+                    }
+                }
+            }
+        });
+        manualModelInput.dataset.hasListener = "true";
+    }
+
+    const favs = getFavoriteModels();
+    if (favs.length > 0) {
+        const favHeader = document.createElement("div");
+        favHeader.className = "model-section-header";
+        favHeader.textContent = "Favoritos";
+        customList.appendChild(favHeader);
+
+        const savedModel = localStorage.getItem(`${currentApiProvider}_selected_model`);
+
+        favs.forEach(fav => {
+            let isSelected = false;
+            if (fav.apiSource === apiSourceInput.value && savedModel === fav.id) {
+                isSelected = true;
+            }
+            addCustomListItem(fav.id, fav.name, fav.hasVision, isSelected, fav.apiSource);
+        });
+
+        const allHeader = document.createElement("div");
+        allHeader.className = "model-section-header";
+        allHeader.textContent = "Todos os Modelos";
+        customList.appendChild(allHeader);
     }
 
     if (apiConfig.provider === "llm") {
@@ -3409,24 +3741,39 @@ async function loadModels() {
                 const savedModel = localStorage.getItem("llm_selected_model");
                 let foundSaved = false;
                 data.models.sort((a, b) => a.name.localeCompare(b.name)).forEach(model => {
+                    const isSelected = savedModel === model.name;
+                    if (isSelected) foundSaved = true;
+                    const hasVision = hasVisionSupport(model.name);
+                    const text = `${model.name} (${model.details?.quantization_level || "N/A"}) - ${formatBytes(model.size)}`;
                     const option = document.createElement("option");
                     option.value = model.name;
-                    option.textContent = `${model.name} (${model.details?.quantization_level || "N/A"}) - ${formatBytes(model.size)}`;
-                    const hasVision = hasVisionSupport(model.name);
-                    option.classList.add(hasVision ? 'model-option-vision' : 'model-option-no-vision');
+                    option.textContent = text;
+                    if(isSelected) option.selected = true;
                     modelSelect.appendChild(option);
-                    if (savedModel === model.name) { option.selected = true; foundSaved = true; }
+                    addCustomListItem(model.name, text, hasVision, isSelected);
                 });
-                if (!foundSaved) modelSelect.options[0].selected = true;
-                setManualMode(false);
+                addManualOption(savedModel === "manual");
+                if (savedModel === "manual") {
+                    setManualMode(true);
+                } else {
+                    if (!foundSaved && data.models.length > 0) {
+                        modelSelect.options[0].selected = true;
+                        customList.querySelector('.custom-model-item:not(.model-favorite-btn)')?.classList.add('selected');
+                    }
+                    if(customName) customName.textContent = modelSelect.options[modelSelect.selectedIndex]?.textContent || "Selecione...";
+                    setManualMode(false);
+                }
             } else {
+                addManualOption(true);
                 setManualMode(true, "Nenhum modelo llm encontrado...");
             }
         } catch (error) {
+            addManualOption(true);
             setManualMode(true, "Falha ao conectar no llm...");
         }
     } else if (apiConfig.provider === "gemini") {
         if (!apiConfig.apiKey) {
+            addManualOption(true);
             setManualMode(true, "Chave API Gemini pendente...");
             return;
         }
@@ -3441,46 +3788,46 @@ async function loadModels() {
                 const sortedModels = jsonData.models
                     .filter(model => model.supportedGenerationMethods.includes("generateContent"))
                     .sort((a, b) => a.displayName.localeCompare(b.displayName));
-                
                 sortedModels.forEach(model => {
+                    const isSelected = savedModel === model.name;
+                    if(isSelected) foundSaved = true;
+                    const hasVision = hasVisionSupport(model.name);
                     const option = document.createElement("option");
                     option.value = model.name;
                     option.textContent = model.displayName;
-                    const hasVision = hasVisionSupport(model.name);
-                    option.classList.add(hasVision ? 'model-option-vision' : 'model-option-no-vision');
+                    if(isSelected) option.selected = true;
                     modelSelect.appendChild(option);
-                    if (savedModel === model.name) {
-                        option.selected = true;
-                        foundSaved = true;
-                    }
+                    addCustomListItem(model.name, model.displayName, hasVision, isSelected);
                 });
-
-                if (!foundSaved) {
-                    const targets = ["2.5-flash", "2.0-flash", "1.5-flash", "flash", "pro"];
-                    for (const target of targets) {
-                        const opt = Array.from(modelSelect.options).find(o => o.value.toLowerCase().includes(target) || o.textContent.toLowerCase().includes(target));
-                        if (opt) { opt.selected = true; foundSaved = true; break; }
+                addManualOption(savedModel === "manual");
+                if (savedModel === "manual") {
+                    setManualMode(true);
+                } else {
+                    if (!foundSaved) {
+                        const targets = ["gemini-1.5-flash-latest", "gemini-1.5-pro-latest", "gemini-pro"];
+                        for (const target of targets) {
+                            const opt = Array.from(modelSelect.options).find(o => o.value.toLowerCase().includes(target.replace("gemini-", "")));
+                            if (opt) { 
+                                opt.selected = true; 
+                                foundSaved = true; 
+                                break; 
+                            }
+                        }
                     }
+                    if (!foundSaved && modelSelect.options.length > 0) {
+                        modelSelect.options[0].selected = true;
+                    }
+                    const selectedEl = customList.querySelector(`.custom-model-item[data-value="${modelSelect.value}"]`);
+                    selectedEl?.classList.add('selected');
+                    if(customName) customName.textContent = modelSelect.options[modelSelect.selectedIndex]?.textContent || "Selecione...";
+                    setManualMode(false);
                 }
-                if (!foundSaved && modelSelect.options.length > 0) modelSelect.options[0].selected = true;
-                setManualMode(false);
             } else {
+                addManualOption(true);
                 setManualMode(true, "Nenhum modelo Gemini encontrado...");
             }
-            
-            const currentSource = apiSourceInput?.value?.trim();
-            if (currentSource && currentSource !== "") {
-                let history = JSON.parse(localStorage.getItem("2b_chat_api_history") || "[]");
-                
-                history = history.filter(item => item.url !== currentSource);
-                
-                history.unshift({ url: currentSource, lastAccess: Date.now() });
-                
-                localStorage.setItem("2b_chat_api_history", JSON.stringify(history.slice(0, 10)));
-                
-                console.log(`Fonte válida salva no histórico: ${currentSource}`);
-            }
         } catch (error) {
+            addManualOption(true);
             setManualMode(true, "Falha na API Gemini...");
         }
     } else {
@@ -3497,32 +3844,40 @@ async function loadModels() {
             if (models.length > 0) {
                 const savedModel = localStorage.getItem(`${providerName}_selected_model`);
                 let foundSaved = false;
-                models.forEach(model => {
+                models.sort((a, b) => (a.id || a.name).localeCompare(b.id || b.name)).forEach(model => {
                     const id = model.id || model.name;
-                    if (id.includes('whisper') || id.includes('embed')) return;
+                    if (id.includes('whisper') || id.includes('embed') || id.includes('tts') || id.includes('dall-e')) return;
+                    const isSelected = savedModel === id;
+                    if(isSelected) foundSaved = true;
+                    const hasVision = hasVisionSupport(id);
                     const option = document.createElement("option");
                     option.value = id;
                     option.textContent = id;
-                    const hasVision = hasVisionSupport(id);
-                    option.classList.add(hasVision ? 'model-option-vision' : 'model-option-no-vision');
+                    if(isSelected) option.selected = true;
                     modelSelect.appendChild(option);
-                    if (savedModel === id) { option.selected = true; foundSaved = true; }
+                    addCustomListItem(id, id, hasVision, isSelected);
                 });
-                addManualOption();
+                addManualOption(savedModel === "manual");
                 if (savedModel === "manual") {
                     setManualMode(true);
                 } else {
-                    if (!foundSaved && modelSelect.options.length > 0) modelSelect.options[0].selected = true;
+                    if (!foundSaved && modelSelect.options.length > 1) {
+                        modelSelect.options[0].selected = true;
+                        customList.querySelector('.custom-model-item:not(.model-favorite-btn)')?.classList.add('selected');
+                    }
                     setManualMode(false);
                 }
+                if(customName) customName.textContent = modelSelect.options[modelSelect.selectedIndex]?.textContent || "Selecione...";
             } else {
+                addManualOption(true);
                 setManualMode(true, "Nenhum modelo encontrado...");
             }
         } catch (error) {
+            addManualOption(true);
             setManualMode(true, "Falha ao listar modelos...");
         }
     }
-    if (modelSelect.style.display !== "none" && modelSelect.value) {
+    if (customSelector.style.display !== "none" && modelSelect.value) {
         localStorage.setItem(`${currentApiProvider}_selected_model`, modelSelect.value);
     }
     updateVisionIndicator();
@@ -3531,7 +3886,8 @@ async function loadModels() {
 function exportChatHistory(chatId) {
     if (!allChats || !allChats[chatId]) return;
     const chat = allChats[chatId];
-    const modelName = modelSelect ? modelSelect.options[modelSelect.selectedIndex]?.textContent : "desconhecido";
+    const customName = document.getElementById("custom-model-name");
+    const modelName = customName ? customName.textContent : "desconhecido";
     const chatTitle = chat.title || "Conversa";
     const sanitizedTitle = chatTitle.replace(/[^a-z0-9]/gi, "_").toLowerCase();
     let content = `Esta conversa foi gerada com a 2B usando o modelo ${modelName} (${currentApiProvider}). Os chats com IA podem apresentar informações incorretas ou ofensivas.\n\n=======================\n\n`;
@@ -3578,7 +3934,6 @@ function exportChatHistory(chatId) {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 }
-
 
 window.handlePastedImageFromNative = function(mimeType, base64String) {
     if (mimeType && base64String) {
