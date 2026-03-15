@@ -1587,9 +1587,11 @@ async function fetchBotResponse() {
 
                     if (chunkContent) {
                         tokenVibration(isFirstChunk);
-                        if (isFirstChunk) isFirstChunk = false;
+                        if (isFirstChunk) {
+                            isFirstChunk = false;
+                            receivedAnyData = true;
+                        }
                         
-                        receivedAnyData = true;
                         if (!responseDiv) {
                             typingAnimation.style.display = 'none';
                             responseDiv = addMessage("", false, false, botMessageTimestamp); 
@@ -1598,10 +1600,12 @@ async function fetchBotResponse() {
                         botResponseContent += chunkContent;
                         const contentElement = responseDiv.querySelector(".content-text");
                         if (contentElement) {
-                            const cleanedStreamText = cleanTextForUI(botResponseContent);
-                            contentElement.innerHTML = DOMPurify.sanitize(marked.parse(cleanedStreamText));
+                            contentElement.innerHTML = DOMPurify.sanitize(marked.parse(cleanTextForUI(botResponseContent)));
                         }
-                        if (autoScrollEnabled) scrollToBottom("auto");
+
+                        if (autoScrollEnabled) {
+                            scrollContainer.scrollTop = scrollContainer.scrollHeight;
+                        }
                     }
                 }
             }
@@ -2026,8 +2030,10 @@ function handleResizeLayout() { adjustTextareaHeight(); }
 
 function scrollToBottom(behavior = "smooth") {
     if (scrollContainer) {
+        
         autoScrollEnabled = true; 
-        scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: behavior });
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        
         userHasScrolledUp = false;
         if (scrollToBottomBtn) {
             scrollToBottomBtn.classList.remove("visible");
