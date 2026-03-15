@@ -87,6 +87,51 @@
     }
 }
 
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-color: #0b0d11;
+        --glass-bg: rgba(11, 13, 17, 0.75);
+        --sidebar-bg: rgba(17, 20, 25, 0.65);
+        --input-bg: rgba(25, 29, 36, 0.6);
+        --text-color: #f3f4f6;
+        --text-light: #9ca3af;
+        --user-msg-bg: rgba(255, 255, 255, 0.08);
+        --bot-msg-bg: transparent;
+        --accent-color: #ffffff;
+        --border-color: rgba(255, 255, 255, 0.08);
+        --glass-border: rgba(255, 255, 255, 0.04);
+        --shadow-color: rgba(0, 0, 0, 0.4);
+        --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        --user-avatar-bg: #ffffff;
+        --bot-avatar-bg: #1f232b;
+        --hover-bg: rgba(255, 255, 255, 0.05);
+        --light-border: 1px solid rgba(255, 255, 255, 0.05);
+
+        --token-comment: #6b7280;
+        --token-prolog: #6b7280;
+        --token-doctype: #6b7280;
+        --token-cdata: #6b7280;
+        --token-operator: #d1d5db;
+        --token-punctuation: #d1d5db;
+        --token-tag: #fde047;
+        --token-attr-name: #fde047;
+        --token-attr-value: #a3e635;
+        --token-string: #a3e635;
+        --token-keyword: #f43f5e;
+        --token-number: #c084fc;
+        --token-boolean: #38bdf8;
+        --token-constant: #38bdf8;
+        --token-function: #a3e635;
+        --token-class-name: #38bdf8;
+        --token-selector: #a3e635;
+        --token-entity: #c084fc;
+        --token-url: #c084fc;
+        --token-variable: #a3e635;
+        --token-inserted-bg: rgba(163, 230, 53, 0.1);
+        --token-deleted-bg: rgba(244, 63, 94, 0.1);
+    }
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -464,7 +509,7 @@ body {
     right: 0;
     bottom: 0;
     overflow-y: auto;
-    scroll-behavior: smooth;
+    scroll-behavior: auto;
 }
 
 .scroll-container::-webkit-scrollbar {
@@ -2136,7 +2181,7 @@ body {
         height: 40px !important;
         padding: 0 !important;
         margin: 0 !important;
-        display: inline-flex; /* Removemos o !important daqui */
+        display: inline-flex;
         justify-content: center;
         align-items: center;
     }
