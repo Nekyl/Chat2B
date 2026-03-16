@@ -1420,6 +1420,12 @@ body {
     margin-right: 12px;
 }
 
+#app-settings-modal h2,
+#app-settings-modal h2 i {
+    color: var(--text-color) !important;
+    opacity: 1;
+}
+
 .modal p {
     margin-bottom: 12px;
     line-height: 1.6;
@@ -1440,7 +1446,7 @@ body {
 .modal-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 12px;
+    gap: 8px;
     margin-top: 24px;
 }
 
@@ -1449,7 +1455,7 @@ body {
 }
 
 .modal .btn {
-    padding: 12px 24px;
+    padding: 12px 12px;
     border: none;
     border-radius: 10px;
     cursor: pointer;
