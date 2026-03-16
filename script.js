@@ -361,68 +361,86 @@ function setupEventListeners() {
     }
 
     document.addEventListener('click', function(e) {
-        const copyCodeBtn = e.target.closest('.code-copy-btn');
-        if (copyCodeBtn) {
-            e.stopPropagation();
-            const blockId = copyCodeBtn.getAttribute('data-block-id');
-            const codeElement = document.getElementById(blockId);
-            if (codeElement) copyTextToClipboard(codeElement.textContent, copyCodeBtn);
-            return;
-        }
-        
-        const inlineCode = e.target.closest('.message-content code:not(pre *)');
-        if (inlineCode) {
-            e.stopPropagation();
-            copyTextToClipboard(inlineCode.textContent, inlineCode);
-            return;
-        }
+    const copyCodeBtn = e.target.closest('.code-copy-btn');
+    if (copyCodeBtn) {
+        e.stopPropagation();
+        const blockId = copyCodeBtn.getAttribute('data-block-id');
+        const codeElement = document.getElementById(blockId);
+        if (codeElement) copyTextToClipboard(codeElement.textContent, copyCodeBtn);
+        return;
+    }
+    
+    const inlineCode = e.target.closest('.message-content code:not(pre *)');
+    if (inlineCode) {
+        e.stopPropagation();
+        copyTextToClipboard(inlineCode.textContent, inlineCode);
+        return;
+    }
 
-        const copyMsgBtn = e.target.closest('.message-action-btn.copy-message');
-        if (copyMsgBtn) {
-            e.stopPropagation();
-            const messageDiv = copyMsgBtn.closest('.message');
-            if (messageDiv?.dataset.originalContent) {
-                copyTextToClipboard(cleanTextForUI(messageDiv.dataset.originalContent), copyMsgBtn);
-            }
-            return;
+    const copyMsgBtn = e.target.closest('.message-action-btn.copy-message');
+    if (copyMsgBtn) {
+        e.stopPropagation();
+        const messageDiv = copyMsgBtn.closest('.message');
+        if (messageDiv?.dataset.originalContent) {
+            copyTextToClipboard(cleanTextForUI(messageDiv.dataset.originalContent), copyMsgBtn);
         }
+        return;
+    }
 
-        const ttsBtn = e.target.closest('.tts-btn');
-        if (ttsBtn) {
-            e.stopPropagation();
-            const messageDiv = ttsBtn.closest('.message');
-            if (messageDiv?.dataset.originalContent) {
-                const textToSpeak = messageDiv.dataset.originalContent.replace(/```[\s\S]*?```/g, 'Bloco de código.');
-                speakText(textToSpeak, ttsBtn, messageDiv);
-            }
-            return;
-        }
-
-        const regenerateBtn = e.target.closest('.regenerate-btn');
-        if (regenerateBtn) {
-            e.stopPropagation();
-            const messageDiv = regenerateBtn.closest('.message');
-            if (messageDiv) {
-                regenerateFromMessage(messageDiv);
-            }
-            return;
-        }
-
-        const editBtn = e.target.closest('.edit-message-btn');
-        if (editBtn) {
-            e.stopPropagation();
-            const messageDiv = editBtn.closest('.message');
-            startUserMessageEdit(messageDiv);
-            return;
-        }
-
-        const activeEditContainer = document.querySelector('.user-edit-container');
-        if (activeEditContainer && !e.target.closest('.user-edit-container')) {
-            if (currentlyEditing.div) {
-                finishUserMessageEdit(currentlyEditing.div, true, false);
+    const toggleCodeBtn = e.target.closest('.code-toggle-btn');
+    if (toggleCodeBtn) {
+        e.stopPropagation();
+        const preElement = toggleCodeBtn.closest('pre');
+        if (preElement) {
+            preElement.classList.toggle('collapsed');
+            const icon = toggleCodeBtn.querySelector('i');
+            if (preElement.classList.contains('collapsed')) {
+                icon.className = 'fas fa-chevron-down';
+                toggleCodeBtn.title = 'Maximizar código';
+            } else {
+                icon.className = 'fas fa-chevron-up';
+                toggleCodeBtn.title = 'Minimizar código';
             }
         }
-    });
+        return;
+    }
+
+    const ttsBtn = e.target.closest('.tts-btn');
+    if (ttsBtn) {
+        e.stopPropagation();
+        const messageDiv = ttsBtn.closest('.message');
+        if (messageDiv?.dataset.originalContent) {
+            const textToSpeak = messageDiv.dataset.originalContent.replace(/```[\s\S]*?```/g, 'Bloco de código.');
+            speakText(textToSpeak, ttsBtn, messageDiv);
+        }
+        return;
+    }
+
+    const regenerateBtn = e.target.closest('.regenerate-btn');
+    if (regenerateBtn) {
+        e.stopPropagation();
+        const messageDiv = regenerateBtn.closest('.message');
+        if (messageDiv) {
+            regenerateFromMessage(messageDiv);
+        }
+        return;
+    }
+
+    const editBtn = e.target.closest('.edit-message-btn');
+    if (editBtn) {
+        e.stopPropagation();
+        const messageDiv = editBtn.closest('.message');
+        startUserMessageEdit(messageDiv);
+        return;
+    }
+
+    const activeEditContainer = document.querySelector('.user-edit-container');
+    if (activeEditContainer && !e.target.closest('.user-edit-container')) {
+        if (currentlyEditing.div) {
+            finishUserMessageEdit(currentlyEditing.div, true, false);
+        }
+    }
+});
 
     if (confirmDeleteBtn) {
         confirmDeleteBtn.addEventListener('click', () => {
@@ -1063,16 +1081,18 @@ if (window.marked && window.hljs) {
                 return `
                     <div class="code-block-wrapper">
                         ${filenameDiv}
-                        <pre data-language="${validLanguage}">
-                            <div class="code-block-header">
+                        <pre data-language="${validLanguage}"><div class="code-block-header">
                                 <span class="code-language">${validLanguage}</span>
-                                <button class="code-copy-btn" data-block-id="${blockId}">
-                                    <i class="fas fa-copy"></i>
-                                    <span>Copiar</span>
-                                </button>
-                            </div>
-                            <code id="${blockId}" class="hljs language-${validLanguage}">${highlighted}</code>
-                        </pre>
+                                <div class="code-block-actions">
+                                    <button class="code-copy-btn" data-block-id="${blockId}">
+                                        <i class="fas fa-copy"></i>
+                                        <span>Copiar</span>
+                                    </button>
+                                    <button class="code-toggle-btn" title="Minimizar código">
+                                        <i class="fas fa-chevron-up"></i>
+                                    </button>
+                                </div>
+                            </div><code id="${blockId}" class="hljs language-${validLanguage}">${highlighted}</code></pre>
                     </div>
                 `;
             };
@@ -1586,27 +1606,36 @@ async function fetchBotResponse() {
                     }
 
                     if (chunkContent) {
-                        tokenVibration(isFirstChunk);
-                        if (isFirstChunk) {
-                            isFirstChunk = false;
-                            receivedAnyData = true;
-                        }
+                    tokenVibration(isFirstChunk);
+                    if (isFirstChunk) {
+                        isFirstChunk = false;
+                        receivedAnyData = true;
+                    }
+                    
+                    if (!responseDiv) {
+                        typingAnimation.style.display = 'none';
+                        responseDiv = addMessage("", false, false, botMessageTimestamp); 
+                    }
+                    
+                    botResponseContent += chunkContent;
+                    const contentElement = responseDiv.querySelector(".content-text");
+                    if (contentElement) {
+                        const safeTextToRender = fixIncompleteMarkdown(botResponseContent);
+                        contentElement.innerHTML = DOMPurify.sanitize(marked.parse(cleanTextForUI(safeTextToRender)));
                         
-                        if (!responseDiv) {
-                            typingAnimation.style.display = 'none';
-                            responseDiv = addMessage("", false, false, botMessageTimestamp); 
-                        }
-                        
-                        botResponseContent += chunkContent;
-                        const contentElement = responseDiv.querySelector(".content-text");
-                        if (contentElement) {
-                            contentElement.innerHTML = DOMPurify.sanitize(marked.parse(cleanTextForUI(botResponseContent)));
-                        }
-
                         if (autoScrollEnabled) {
-                            scrollContainer.scrollTop = scrollContainer.scrollHeight;
+                            const codeBlocks = contentElement.querySelectorAll('pre code');
+                            if (codeBlocks.length > 0) {
+                                const activeCodeBlock = codeBlocks[codeBlocks.length - 1];
+                                activeCodeBlock.scrollTop = activeCodeBlock.scrollHeight;
+                            }
                         }
                     }
+                
+                    if (autoScrollEnabled) {
+                        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+                    }
+                }
                 }
             }
             
@@ -2942,6 +2971,21 @@ function handleMissingApiKey(isFirstTime = false) {
     if (globalApiKeyInput) {
         globalApiKeyInput.focus();
     }
+}
+
+function fixIncompleteMarkdown(text) {
+    let fixedText = text;
+    const codeBlockMatches = fixedText.match(/```/g);
+    if (codeBlockMatches && codeBlockMatches.length % 2 !== 0) {
+        if (!fixedText.endsWith('\n')) fixedText += '\n';
+        fixedText += '```';
+    }
+    const textWithoutCodeBlocks = fixedText.replace(/```[\s\S]*?```/g, '');
+    const inlineCodeMatches = textWithoutCodeBlocks.match(/`/g);
+    if (inlineCodeMatches && inlineCodeMatches.length % 2 !== 0) {
+        fixedText += '`';
+    }
+    return fixedText;
 }
 
 function cleanTextForUI(text) {
