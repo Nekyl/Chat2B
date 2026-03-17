@@ -1,46 +1,73 @@
-# Chat 2B
+# Chat2B
 
-Um front-end de chat, 100% client-side, para interagir com as APIs do Google Gemini e instâncias locais do Ollama.
+> **Acesse agora:** [nekyl.github.io/Chat2B](https://nekyl.github.io/Chat2B/)
 
-O projeto foi criado com uma persona de IA customizada: espirituosa, sarcástica e divertida, visando uma experiência de conversação mais natural e envolvente do que a de assistentes tradicionais.
+O **Chat2B** é um front-end de chat moderno, **100% client-side**, projetado para oferecer uma interface rápida, privada e altamente customizável para interagir com os principais modelos de linguagem do mercado. Seja usando APIs de nuvem ou modelos rodando localmente, o Chat2B coloca o controle na sua mão.
 
-## ✨ Features
+A experiência é centrada na **2B**, uma persona de IA exclusiva: espirituosa, sarcástica e divertida. Diferente de assistentes tradicionais e robóticos, a 2B foi refinada para ser uma companhia envolvente, capaz de equilibrar deboche inteligente com suporte técnico de alta qualidade.
 
-*   **Dual Backend: Gemini & Ollama:** Conecte-se à API do **Google Gemini** ou a qualquer instância local/remota do **Ollama**, com suporte para endpoints customizados (`http/https`).
-*   **Suporte a Vision (Multimodal):** Envie imagens anexando arquivos ou colando diretamente no chat ao usar modelos Gemini com capacidade de visão.
-*   **Progressive Web App (PWA):** Instale o chat como um aplicativo de desktop ou mobile para acesso rápido e uma experiência mais nativa.
-*   **Renderização de Código Avançada:** Suporte a Markdown, syntax highlighting e um botão para copiar o conteúdo dos blocos de código.
-*   **Gerenciamento Completo de Chats:** Histórico salvo localmente, com funcionalidades para criar, renomear, exportar e realizar buscas em todas as conversas.
-*   **IA Customizável:** Altere o Prompt do Sistema e a Temperatura do modelo diretamente nas configurações para ajustar a persona da IA.
+---
 
-## 🚀 Recommended Models
+## 🚀 Diferenciais e Possibilidades
 
-Para obter a melhor experiência e extrair o máximo da persona customizada, o uso dos seguintes modelos é altamente recomendado:
+### 🌐 Compatibilidade Universal (OpenAI SDK & Mais)
+O Chat2B não está limitado a um único provedor. Ele é compatível com qualquer serviço que siga o padrão de API da OpenAI, além de suporte nativo para:
+*   **Google Gemini:** Integração total com modelos 1.5 e 2.0 (Flash/Pro).
+*   **OpenAI:** Use GPT-4o, GPT-4 Turbo e outros via chave de API oficial.
+*   **Groq & xAI (Grok):** Performance extrema com modelos Llama 3 e Grok.
+*   **Endpoints Customizados:** Conecte-se a qualquer gateway compatível com o SDK da OpenAI apenas inserindo a URL.
 
-*   **Gemini 2.5 Flash** ou **Gemini 2.5 Pro**
+### 🏠 Poder Local com Ollama e LM Studio
+Privacidade total e custo zero. O Chat2B integra-se perfeitamente com instâncias locais:
+*   **Ollama:** Suporte nativo para detecção de modelos e streaming.
+*   **LM Studio / LocalAI:** Basta apontar para o endpoint local (ex: `http://localhost:1234/v1`) para usar seus modelos locais com a interface fluida do Chat2B.
 
-## ⚙️ Getting Started
+### 🖼️ Visão e Multimodalidade
+*   **Suporte a Vision:** Anexe imagens (upload ou colar) para análise detalhada em modelos compatíveis (Gemini, GPT-4o, etc).
+*   **Edição Integrada:** Ferramenta de crop e ajuste de imagem antes do envio.
+*   **Suporte a Vídeo:** Envio de pequenos clipes para modelos que suportam entrada de vídeo (Gemini).
 
-Este projeto é 100% client-side, sem necessidade de build steps. Você pode **[clicar aqui](https://nekyl.github.io/Chat2B/)** para testar a versão online agora mesmo, ou seguir os passos abaixo para rodar localmente.
+### 📱 Experiência PWA (Instalável)
+Transforme o Chat2B em um aplicativo nativo no seu Windows, Mac, Android ou iOS. Graças ao suporte a **Progressive Web App**, você tem acesso rápido sem precisar abrir o navegador toda vez.
+
+---
+
+## ✨ Funcionalidades Principais
+
+*   **Zero Backend:** Suas chaves de API e históricos nunca saem do seu navegador. Tudo é processado localmente.
+*   **Persona Ajustável:** Além da 2B, você pode modificar o *System Prompt* e a *Temperatura* globalmente ou por chat para moldar o comportamento da IA.
+*   **Busca Global:** Encontre qualquer termo em todas as suas conversas passadas instantaneamente.
+
+---
+
+## ⚙️ Como Começar
+
+### Versão Web (Recomendado)
+Acesse [nekyl.github.io/Chat2B](https://nekyl.github.io/Chat2B/) e comece a usar imediatamente. Suas configurações serão salvas no `localStorage` do navegador.
+
+### Rodando Localmente
+Se preferir hospedar você mesmo ou modificar o código:
 
 1.  **Clone o repositório:**
     ```bash
     git clone https://github.com/Nekyl/Chat2B.git
     ```
-
 2.  **Abra o `index.html`:**
-    *   A maneira mais simples é usar uma extensão como o **Live Server** no VS Code para servir os arquivos localmente.
-    *   Alternativamente, abrir o `index.html` diretamente no navegador deve funcionar.
+    *   Recomendamos usar a extensão **Live Server** no VS Code.
+    *   Ou apenas abra o arquivo diretamente no navegador.
 
-### Configuration
+### Configuração de API
+No campo de fonte (topo da tela), você pode digitar:
+*   `gemini`, `openai`, `groq` ou `grok` para usar os provedores oficiais.
+*   `ollama` ou `localhost:11434` para sua instância local do Ollama.
+*   Uma URL completa (ex: `https://sua-api.com/v1`) para provedores customizados.
 
-Ao abrir o aplicativo, configure sua fonte de API no campo de texto superior:
+---
 
-*   **Para usar o Gemini:**
-    1.  Digite `gemini` no campo de fonte.
-    2.  Na primeira vez que enviar uma mensagem, o aplicativo solicitará sua **Chave de API do Google AI Studio**. Ela será salva localmente no seu navegador.
+## 🛠️ Tecnologias Utilizadas
 
-*   **Para usar Ollama:**
-    1.  Certifique-se de que sua instância do Ollama está em execução.
-    2.  Digite `ollama` para usar o endereço padrão (`http://localhost:11434`) ou insira a URL completa do seu servidor Ollama.
+*   **Vanilla JS / CSS / HTML:** Sem frameworks pesados, garantindo velocidade instantânea.
+*   **Marked.js:** Para um processamento de Markdown robusto.
+*   **Highlight.js:** Para blocos de código elegantes.
+*   **FontAwesome:** Iconografia profissional.
 
