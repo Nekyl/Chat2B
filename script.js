@@ -227,6 +227,8 @@ async function initializeApp() {
     setupImagePreview();
     createScrollToBottomButton();
     setupCustomModelDropdown();
+    enableScrollbarDragging(document.querySelector('.custom-model-list'));
+    enableScrollbarDragging(document.getElementById("system-prompt-input"));
     
     const lastApi = localStorage.getItem("2b_chat_last_api_source");
     if (lastApi && apiSourceInput) {
@@ -1925,6 +1927,7 @@ function addMessage(rawContent, isUser = false, shouldScroll = true, messageTime
     
     messageDiv.querySelectorAll("pre code").forEach(block => {
         hljs.highlightElement(block);
+        enableScrollbarDragging(block);
     });
 
     if (shouldScroll) {
@@ -1999,57 +2002,56 @@ function displayErrorWithRetry(errorMessage) {
 }
 
 function enableScrollbarDragging(scrollableElement) {
-    if (!scrollableElement) return;
+    if (!scrollableElement || scrollableElement.dataset.scrollAttached === "true") return;
+    scrollableElement.dataset.scrollAttached = "true";
+
+    const parentContainer = scrollableElement.parentElement;
+    if (!parentContainer) return;
+
+    const handle = document.createElement('div');
+    handle.className = 'custom-scrollbar-handle';
+    parentContainer.appendChild(handle);
 
     let isDragging = false;
-    let initialScrollTop = 0;
-    let initialTouchY = 0;
-    let scrollRatio = 1;
-
-    const onTouchStart = (e) => {
-        if (scrollableElement.scrollHeight <= scrollableElement.clientHeight) {
-            isDragging = false;
-            return;
-        }
-
-        const rect = scrollableElement.getBoundingClientRect();
-        const touchX = e.touches[0].clientX;
-        const scrollbarWidth = scrollableElement.offsetWidth - scrollableElement.clientWidth;
-        
-        if (touchX >= rect.right - scrollbarWidth - 5) {
-            isDragging = true;
-            e.preventDefault();
-
-            initialScrollTop = scrollableElement.scrollTop;
-            initialTouchY = e.touches[0].clientY;
-
-            const trackHeight = scrollableElement.clientHeight;
-            const contentHeight = scrollableElement.scrollHeight;
-            scrollRatio = (contentHeight > trackHeight) ? (contentHeight - trackHeight) / trackHeight : 1;
-        }
-    };
+    let startY = 0;
+    let startScrollTop = 0;
 
     const onTouchMove = (e) => {
         if (!isDragging) return;
         e.preventDefault();
 
-        const currentTouchY = e.touches[0].clientY;
-        const touchDeltaY = currentTouchY - initialTouchY;
-
-        const scrollDelta = touchDeltaY * scrollRatio;
-        const newScrollTop = initialScrollTop + scrollDelta;
-
-        scrollableElement.scrollTop = Math.max(0, Math.min(scrollableElement.scrollHeight - scrollableElement.clientHeight, newScrollTop));
+        const currentY = e.touches[0].clientY;
+        const deltaY = currentY - startY;
+        const ratio = scrollableElement.scrollHeight / scrollableElement.clientHeight;
+        scrollableElement.scrollTop = startScrollTop + (deltaY * ratio);
     };
 
     const onTouchEnd = () => {
-        isDragging = false;
+        if (isDragging) {
+            isDragging = false;
+            scrollableElement.style.pointerEvents = "auto";
+            document.removeEventListener('touchmove', onTouchMove);
+            document.removeEventListener('touchend', onTouchEnd);
+            document.removeEventListener('touchcancel', onTouchEnd);
+        }
     };
 
-    scrollableElement.addEventListener('touchstart', onTouchStart, { passive: false });
-    window.addEventListener('touchmove', onTouchMove, { passive: false });
-    window.addEventListener('touchend', onTouchEnd);
-    window.addEventListener('touchcancel', onTouchEnd);
+    const onTouchStart = (e) => {
+        if (scrollableElement.scrollHeight <= scrollableElement.clientHeight + 2) return;
+
+        isDragging = true;
+        e.preventDefault();
+        
+        startY = e.touches[0].clientY;
+        startScrollTop = scrollableElement.scrollTop;
+        scrollableElement.style.pointerEvents = "none";
+
+        document.addEventListener('touchmove', onTouchMove, { passive: false });
+        document.addEventListener('touchend', onTouchEnd);
+        document.addEventListener('touchcancel', onTouchEnd);
+    };
+
+    handle.addEventListener('touchstart', onTouchStart, { passive: false });
 }
 
 function adjustTextareaHeight() {

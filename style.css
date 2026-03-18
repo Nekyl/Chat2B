@@ -1007,7 +1007,6 @@ body {
     margin: 1.5em 0;
     overflow: hidden;
     position: relative;
-    padding-top: 44px !important;
     padding-bottom: 0 !important;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1020,7 +1019,8 @@ body {
 }
 
 .code-block-header {
-    position: absolute;
+    position: relative;
+    z-index: 20;
     top: 0;
     left: 0;
     right: 0;
@@ -3512,3 +3512,28 @@ video::-webkit-media-controls {
 .hljs-attribute, .hljs-attr, .hljs-variable, .hljs-template-variable, .hljs-class .hljs-title, .hljs-type { color: var(--token-variable) !important; }
 .hljs-symbol, .hljs-bullet, .hljs-subst, .hljs-meta, .hljs-meta .hljs-keyword, .hljs-selector-attr, .hljs-selector-pseudo, .hljs-link { color: var(--token-number) !important; }
 .hljs-built_in, .hljs-deletion { color: var(--token-operator) !important; }
+
+.message-content pre {
+    position: relative !important;
+}
+
+.custom-scrollbar-handle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 40px;
+    z-index: 10;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.message-content pre code {
+    overscroll-behavior: auto !important;
+    touch-action: pan-x pan-y !important;
+    -webkit-overflow-scrolling: touch !important;
+}
+
+#system-prompt-input,
+.custom-model-list {
+    overscroll-behavior: none !important;
+}
