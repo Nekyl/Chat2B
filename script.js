@@ -1071,7 +1071,20 @@ if (window.marked && window.hljs) {
         },
         renderer: (function() {
             const renderer = new marked.Renderer();
+            
+            renderer.table = function(header, body) {
+                return `
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>${header}</thead>
+                            <tbody>${body}</tbody>
+                        </table>
+                    </div>
+                `;
+            };
+            
             renderer.code = function(code, languageInfo = "") {
+              
                 const [language, filename] = (languageInfo || "").split(":");
                 const validLanguage = hljs.getLanguage(language) ? language : "plaintext";
                 const highlighted = this.options.highlight(code, validLanguage);

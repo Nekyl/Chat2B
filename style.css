@@ -946,6 +946,7 @@ body {
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0 0 0 1px var(--border-color);
+    background-color: var(--input-bg);
 }
 
 .message-content th,
@@ -953,6 +954,9 @@ body {
     padding: 12px 16px;
     border-bottom: 1px solid var(--border-color);
     text-align: left;
+    text-align: left;
+    min-width: 60px;
+    white-space: nowrap;
 }
 
 .message-content th {
@@ -2278,9 +2282,26 @@ body {
     }
 
     .message-content table {
-        display: block;
+        display: table;
         max-width: 100%;
+        min-width: 300px;
+        table-layout: auto;
         overflow-x: auto;
+        margin: 0;
+    }
+    
+    .message-content .content-text {
+      overflow-x: visible;
+      width: 100%;
+    }
+    
+    .table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 1.5em 0;
+    border-radius: 8px;
+    box-shadow: 0 0 0 1px var(--border-color);
     }
 
     #typing-animation {
