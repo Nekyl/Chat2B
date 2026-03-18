@@ -510,6 +510,7 @@ body {
     bottom: 0;
     overflow-y: auto;
     scroll-behavior: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .scroll-container::-webkit-scrollbar {

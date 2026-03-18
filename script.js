@@ -341,25 +341,36 @@ function setupEventListeners() {
             updateSendButtonState();
         });
 
-        const shouldScrollToBottom = () => {
-            if (!scrollContainer) return false;
-            const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-            const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
-            if (isNearBottom) return true;
-            return false;
-        };
-
-        const handleMobileKeyboard = () => {
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener("resize", () => {
+                const isMobile = window.innerWidth <= 768;
+                
+                if (isMobile && document.activeElement === messageInput) {
+                    
+                    requestAnimationFrame(() => {
+                        scrollToBottom('smooth');
+                    });
+                }
+            });
+        } else {
+            
+            let resizeDebounceTimer;
+        
+        window.addEventListener('resize', () => {
             const isMobile = window.innerWidth <= 768;
-            if (isMobile && shouldScrollToBottom()) {
-                setTimeout(() => {
-                    scrollToBottom('smooth');
-                }, 300);
+            
+            if (isMobile && document.activeElement === messageInput) {
+                clearTimeout(resizeDebounceTimer);
+                
+                resizeDebounceTimer = setTimeout(() => {
+                    setTimeout(() => {
+                        scrollToBottom('smooth');
+                    }, 500);
+                    
+                }, 150);
             }
-        };
-
-        messageInput.addEventListener('focus', handleMobileKeyboard);
-        messageInput.addEventListener('click', handleMobileKeyboard);
+        });
+        }
     }
 
     document.addEventListener('click', function(e) {
@@ -1648,7 +1659,10 @@ async function fetchBotResponse() {
                     }
                 
                     if (autoScrollEnabled) {
-                        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+                        scrollContainer.scrollTo({ 
+                            top: scrollContainer.scrollHeight, 
+                            behavior: "auto" 
+                        });
                     }
                 }
                 }
@@ -2074,9 +2088,11 @@ function handleResizeLayout() { adjustTextareaHeight(); }
 
 function scrollToBottom(behavior = "smooth") {
     if (scrollContainer) {
-        
         autoScrollEnabled = true; 
-        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        scrollContainer.scrollTo({
+            top: scrollContainer.scrollHeight,
+            behavior: behavior
+        });
         
         userHasScrolledUp = false;
         if (scrollToBottomBtn) {
