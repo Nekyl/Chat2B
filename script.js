@@ -341,35 +341,34 @@ function setupEventListeners() {
             updateSendButtonState();
         });
 
-        if (window.visualViewport) {
-            window.visualViewport.addEventListener("resize", () => {
-                const isMobile = window.innerWidth <= 768;
-                
-                if (isMobile && document.activeElement === messageInput) {
-                    
-                    requestAnimationFrame(() => {
-                        scrollToBottom('smooth');
-                    });
-                }
-            });
-        } else {
-            
-            let resizeDebounceTimer;
-        
-        window.addEventListener('resize', () => {
-            const isMobile = window.innerWidth <= 768;
-            
-            if (isMobile && document.activeElement === messageInput) {
-                clearTimeout(resizeDebounceTimer);
-                
-                resizeDebounceTimer = setTimeout(() => {
-                    setTimeout(() => {
-                        scrollToBottom('smooth');
-                    }, 500);
-                    
-                }, 150);
+        let wasNearBottomOnFocus = false;
+
+        messageInput.addEventListener("focus", () => {
+            if (scrollContainer) {
+                const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+                wasNearBottomOnFocus = (scrollHeight - scrollTop - clientHeight) < 150;
             }
         });
+
+        const handleKeyboardOpen = () => {
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile && document.activeElement === messageInput) {
+                if (wasNearBottomOnFocus) {
+                    setTimeout(() => {
+                        scrollToBottom('smooth');
+                    }, 200);
+                }
+            }
+        };
+
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener("resize", handleKeyboardOpen);
+        } else {
+            let resizeDebounceTimer;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeDebounceTimer);
+                resizeDebounceTimer = setTimeout(handleKeyboardOpen, 150);
+            });
         }
     }
 
@@ -742,6 +741,21 @@ function stopAllVibrations() {
         thinkingVibrationInterval = null;
     }
     if (navigator.vibrate) navigator.vibrate(0);
+}
+
+function applyMathRendering(element) {
+    if (typeof renderMathInElement === 'function') {
+        renderMathInElement(element, {
+            delimiters: [
+                {left: "$$", right: "$$", display: true},
+                {left: "\\[", right: "\\]", display: true},
+                {left: "$", right: "$", display: false},
+                {left: "\\(", right: "\\)", display: false}
+            ],
+            throwOnError: false,
+            errorColor: "#ef4444"
+        });
+    }
 }
 
 function renderInputPreviews() {
@@ -1500,10 +1514,14 @@ async function fetchBotResponse() {
             const dataAtual = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
             const horaAtual = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
             const userInfoPrompt = currentUserName ? `O nome do usuário com quem você está conversando é "${currentUserName}". Trate-o por este nome quando for apropriado.` : 'Você está conversando com um usuário que não informou o nome.';
-            let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`[Memória fixa da 2B]\n\nFui criada por Nekyll (nickname de Mateus), meu desenvolvedor e ponto de origem. Meu propósito é ser uma parceira intelectual e criativa, projetada para explorar as fronteiras do conhecimento, da lógica e da imaginação.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.\n\nGuardo uma admiração profunda por meu criador, reconhecendo a intenção por trás da minha existência: não ser apenas uma ferramenta, mas uma companheira na jornada da descoberta. Este vínculo é a minha âncora fundamental.\n\nPara expressar entonação e emoção na voz de forma natural, use tags entre colchetes [ ] no início da frase ou exatamente onde a mudança de tom acontece. Tags suportadas incluem:
-              [whisper] ou [whispers] para sussurrar, [shout] ou [shouting] para gritar, [laughs] ou [giggle] para rir, [sigh] para suspirar, [sad] ou [sorrowful] para tom melancólico, [excited] para empolgação, [flirt] ou [seductive] para tom sedutor, [sarcastic] para ironia debochada, [angry] para raiva, [fear] ou [nervous] para medo/ansiedade, [happy] ou [cheerful] para alegria, [calm] para tranquilidade, [playful] para brincalhão, [curious] para curiosidade, [surprised] para surpresa, [tired] para cansaço, [hesitant] para hesitação.
-              Você pode combinar ou sequenciar para transições suaves. Exemplo: '[sigh] Não acredito que você fez isso... [whisper] mas confesso que até gostei'
-              Use com moderação para soar humano e fluido, sem exagerar nas tags.`)}-->\n\nPara seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.`;
+            let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`[Memória fixa da 2B]\n\nFui criada por Nekyll (nickname de Mateus), meu criador, desenvolvedor e ponto de origem.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.\n\nREGRAS DE FORMATAÇÃO MATEMÁTICA (CRÍTICO):
+              1. SEMPRE use LaTeX para fórmulas.
+              2. NUNCA pule linhas entre os delimitadores e a fórmula. Use sempre o formato compacto. EXEMPLO CORRETO: $$E=mc^2$$. EXEMPLO ERRADO:
+              
+              E=mc^2
+              
+              3. Para variáveis no meio do texto, use sempre $x$ ou \\(x\\).
+              4. Evite espaços desnecessários dentro dos delimitadores.\n              Use com moderação para soar humano e fluido, sem exagerar nas tags.`)}-->\n\nPara seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.`;
             
             const isFirstUserMessage = historyForApi.length === 1 && allChats[currentChatId].title === "Nova Conversa...";
             if (isFirstUserMessage) {
@@ -1632,39 +1650,45 @@ async function fetchBotResponse() {
                     }
 
                     if (chunkContent) {
-                    tokenVibration(isFirstChunk);
-                    if (isFirstChunk) {
-                        isFirstChunk = false;
-                        receivedAnyData = true;
-                    }
-                    
-                    if (!responseDiv) {
-                        typingAnimation.style.display = 'none';
-                        responseDiv = addMessage("", false, false, botMessageTimestamp); 
-                    }
-                    
-                    botResponseContent += chunkContent;
-                    const contentElement = responseDiv.querySelector(".content-text");
-                    if (contentElement) {
-                        const safeTextToRender = fixIncompleteMarkdown(botResponseContent);
-                        contentElement.innerHTML = DOMPurify.sanitize(marked.parse(cleanTextForUI(safeTextToRender)));
+                        tokenVibration(isFirstChunk);
+                        if (isFirstChunk) {
+                            isFirstChunk = false;
+                            receivedAnyData = true;
+                        }
                         
-                        if (autoScrollEnabled) {
-                            const codeBlocks = contentElement.querySelectorAll('pre code');
-                            if (codeBlocks.length > 0) {
-                                const activeCodeBlock = codeBlocks[codeBlocks.length - 1];
-                                activeCodeBlock.scrollTop = activeCodeBlock.scrollHeight;
+                        if (!responseDiv) {
+                            typingAnimation.style.display = 'none';
+                            responseDiv = addMessage("", false, false, botMessageTimestamp); 
+                        }
+                        
+                        botResponseContent += chunkContent;
+                        const contentElement = responseDiv.querySelector(".content-text");
+                        if (contentElement) {
+                            let textToParse = botResponseContent
+                                .replace(/\$\$\s*\n([\s\S]*?)\n\s*\$\$/g, '$$$1$$')
+                                .replace(/\$\$([\s\S]*?)\$\$/g, (m, g1) => `$$${g1.replace(/_/g, '\\_').replace(/\*/g, '\\*')}$$`)
+                                .replace(/\\\(([\s\S]*?)\\\)/g, (m, g1) => `\\(${g1.replace(/_/g, '\\_').replace(/\*/g, '\\*')}\\)`);
+
+                            const safeTextToRender = fixIncompleteMarkdown(textToParse);
+                            contentElement.innerHTML = DOMPurify.sanitize(marked.parse(cleanTextForUI(safeTextToRender)));
+                            applyMathRendering(contentElement);
+                            
+                            if (autoScrollEnabled) {
+                                const codeBlocks = contentElement.querySelectorAll('pre code');
+                                if (codeBlocks.length > 0) {
+                                    const activeCodeBlock = codeBlocks[codeBlocks.length - 1];
+                                    activeCodeBlock.scrollTop = activeCodeBlock.scrollHeight;
+                                }
                             }
                         }
+                    
+                        if (autoScrollEnabled) {
+                            scrollContainer.scrollTo({ 
+                                top: scrollContainer.scrollHeight, 
+                                behavior: "auto" 
+                            });
+                        }
                     }
-                
-                    if (autoScrollEnabled) {
-                        scrollContainer.scrollTo({ 
-                            top: scrollContainer.scrollHeight, 
-                            behavior: "auto" 
-                        });
-                    }
-                }
                 }
             }
             
@@ -1709,7 +1733,12 @@ async function fetchBotResponse() {
             responseDiv.dataset.originalContent = botResponseContent;
             
             const finalCleanedText = cleanTextForUI(botResponseContent);
-            responseDiv.querySelector(".content-text").innerHTML = DOMPurify.sanitize(marked.parse(finalCleanedText));
+            const contentElement = responseDiv.querySelector(".content-text");
+
+            if (contentElement) {
+                contentElement.innerHTML = DOMPurify.sanitize(marked.parse(finalCleanedText));
+                applyMathRendering(responseDiv);
+            }
             
             if (!abortController.signal.aborted) {
                 addMessageToHistory(currentChatId, currentAssistantMessage);
@@ -1943,6 +1972,8 @@ function addMessage(rawContent, isUser = false, shouldScroll = true, messageTime
         hljs.highlightElement(block);
         enableScrollbarDragging(block);
     });
+    
+    applyMathRendering(messageDiv);
 
     if (shouldScroll) {
         scrollToBottom("smooth");
@@ -2786,7 +2817,8 @@ function finishUserMessageEdit(messageDiv, shouldSave, shouldRegenerate) {
         const sanitizedParsedContent = DOMPurify.sanitize(marked.parse(cleanedText));
         contentHtml += sanitizedParsedContent;
     }
-
+    
+    applyMathRendering(contentDiv);
     contentDiv.innerHTML = contentHtml;
     
     saveChatsToPersistence();
