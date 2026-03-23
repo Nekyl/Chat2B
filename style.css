@@ -3626,3 +3626,66 @@ video::-webkit-media-controls {
 .katex-display::-webkit-scrollbar {
     display: none;
 }
+
+.custom-model-item {
+    align-items: flex-start;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.custom-model-list > .custom-model-item:last-child {
+    border-bottom: none;
+}
+
+.model-text-and-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
+    flex-grow: 1;
+}
+
+.model-item-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.model-info-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.info-pill {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: var(--hover-bg);
+    border: 1px solid var(--border-color);
+    padding: 4px 8px;
+    border-radius: 8px;
+    flex: 0 1 auto;
+}
+
+.info-label {
+    font-size: 0.55rem;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+}
+
+.info-value {
+    font-size: 0.75rem;
+    color: var(--text-color);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    text-align: center;
+}
