@@ -1145,6 +1145,8 @@ if (window.marked && window.hljs) {
     window.marked = { parse: (text) => text };
 }
 
+let favoritesChanged = false;
+
 function getFavoriteModels() {
     return JSON.parse(localStorage.getItem('2b_chat_favorite_models') || '[]');
 }
@@ -1152,14 +1154,49 @@ function getFavoriteModels() {
 function toggleFavoriteModel(modelId, modelName, apiSource, hasVision) {
     let favs = getFavoriteModels();
     const index = favs.findIndex(f => f.id === modelId && f.apiSource === apiSource);
+    let isNowFavorite = false;
+
     if (index > -1) {
         favs.splice(index, 1);
     } else {
         favs.push({ id: modelId, name: modelName, apiSource: apiSource, hasVision: hasVision });
+        isNowFavorite = true;
     }
+    
     localStorage.setItem('2b_chat_favorite_models', JSON.stringify(favs));
-    loadModels();
+    updateFavoriteIconsVisually(modelId, isNowFavorite);
+    favoritesChanged = true;
 }
+
+function updateFavoriteIconsVisually(modelId, isFavorite) {
+    const modelItems = document.querySelectorAll(`.custom-model-item[data-value="${modelId}"]`);
+    modelItems.forEach(item => {
+        const btn = item.querySelector('.model-favorite-btn');
+        if (btn) {
+            if (isFavorite) {
+                btn.innerHTML = '<i class="fas fa-heart"></i>';
+                btn.classList.add('active');
+            } else {
+                btn.innerHTML = '<i class="far fa-heart"></i>';
+                btn.classList.remove('active');
+            }
+        }
+    });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const observerDropdown = document.querySelector('.custom-model-dropdown');
+    if (observerDropdown) {
+        new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'class' && !observerDropdown.classList.contains('active') && favoritesChanged) {
+                    favoritesChanged = false;
+                    loadModels();
+                }
+            });
+        }).observe(observerDropdown, { attributes: true });
+    }
+});
 
 async function getApiConfig() {
     const sourceValue = apiSourceInput.value.trim();
