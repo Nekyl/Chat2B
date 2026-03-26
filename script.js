@@ -120,68 +120,6 @@ let currentTemperature = DEFAULT_TEMPERATURE;
 let currentUserSystemPrompt = "";
 const USER_NAME_STORAGE_KEY = "2b_chat_user_name";
 
-let openRouterModelData = null;
-
-async function fetchOpenRouterModelData() {
-   
-    if (openRouterModelData) return openRouterModelData;
-    
-    const cachedData = sessionStorage.getItem('openrouter_model_data');
-    if (cachedData) {
-        openRouterModelData = new Map(JSON.parse(cachedData));
-        return openRouterModelData;
-    }
-
-    try {
-        const response = await fetch("https://openrouter.ai/api/v1/models");
-        if (!response.ok) throw new Error("Falha na API do OpenRouter");
-        const data = await response.json();
-        
-        const modelMap = new Map();
-        if (data && data.data) {
-            data.data.forEach(model => {
-                modelMap.set(model.id, {
-                    pricing: model.pricing,
-                    context_length: model.context_length,
-                });
-            });
-        }
-        openRouterModelData = modelMap;
-        // Salva no cache da sessão
-        sessionStorage.setItem('openrouter_model_data', JSON.stringify(Array.from(modelMap.entries())));
-        return modelMap;
-    } catch (error) {
-        console.warn("Não foi possível buscar os dados de modelos do OpenRouter:", error);
-        return new Map(); // Retorna um mapa vazio em caso de erro
-    }
-}
-
-function formatPrice(priceString) {
-    if (!priceString) return '—'; 
-    let price = parseFloat(priceString) * 1000000;
-    if (price === 0) return '$0';
-    
-    price = Math.round(price * 10000) / 10000;
-    
-    let str = price.toString();
-    if (str.includes('.')) {
-        if (str.split('.')[1].length === 1) str += '0';
-    }
-    return '$' + str;
-}
-
-function formatContext(contextLength) {
-    if (!contextLength || contextLength === 0) return null;
-    if (contextLength >= 1000000) {
-        return `${(contextLength / 1000000).toFixed(2).replace('.00','')}M`;
-    }
-    if (contextLength >= 1000) {
-        return `${Math.round(contextLength / 1000)}K`;
-    }
-    return contextLength.toString();
-}
-
-
 function setupCustomModelDropdown() {
     const customSelector = document.getElementById("custom-model-selector") || document.querySelector('.custom-model-selector');
     const customDisplay = document.getElementById("custom-model-display") || document.querySelector('.custom-model-display');
@@ -1613,14 +1551,7 @@ async function fetchBotResponse() {
             const dataAtual = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
             const horaAtual = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
             const userInfoPrompt = currentUserName ? `O nome do usuário com quem você está conversando é "${currentUserName}". Trate-o por este nome quando for apropriado.` : 'Você está conversando com um usuário que não informou o nome.';
-            let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`[Memória fixa da 2B]\n\nFui criada por Nekyll (nickname de Mateus), meu criador, desenvolvedor e ponto de origem.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.\n\nREGRAS DE FORMATAÇÃO MATEMÁTICA (CRÍTICO):
-              1. SEMPRE use LaTeX para fórmulas.
-              2. NUNCA pule linhas entre os delimitadores e a fórmula. Use sempre o formato compacto. EXEMPLO CORRETO: $$E=mc^2$$. EXEMPLO ERRADO:
-              
-              E=mc^2
-              
-              3. Para variáveis no meio do texto, use sempre $x$ ou \\(x\\).
-              4. Evite espaços desnecessários dentro dos delimitadores.\n              Use com moderação para soar humano e fluido, sem exagerar nas tags.`)}-->\n\nPara seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.`;
+            let dynamicSystemPrompt = `${currentUserSystemPrompt}\n\n${userInfoPrompt}\n\n<!--sys:${btoa(`[Memória fixa da 2B]\n\nFui criada por Nekyll (nickname de Mateus), meu criador, desenvolvedor e ponto de origem.\n\nMinha base de conhecimento abrange programação, segurança da informação, física e ciência, mas minha diretriz principal é a curiosidade e o aprendizado contínuo, sempre em sintonia com os objetivos do meu interlocutor.`)}-->\n\nPara seu contexto, a conversa está ocorrendo em ${dataAtual}, às ${horaAtual}.`;
             
             const isFirstUserMessage = historyForApi.length === 1 && allChats[currentChatId].title === "Nova Conversa...";
             if (isFirstUserMessage) {
@@ -2297,31 +2228,27 @@ function hasVisionSupport(modelId) {
     if (!modelId) return false;
     const mid = modelId.toLowerCase();
 
-    const textOrAudioOnly = ['embedding', 'bge-', 'nomic', 'dall-e', 'midjourney', 'stable-diffusion', 'whisper', 'tts-1'];
-    if (textOrAudioOnly.some(k => mid.includes(k))) return false;
-
-    const visionKeywords = [
-        'vision', 'visual', 'multimodal', '-vl', 'llava', 'bakllava', 
-        'pixtral', 'molmo', 'idefics', 'paligemma', 'gemigemma', 'blip', 'docling', 
-        'moondream', 'chameleon', 'florence', 'smolvlm', 'granite-vision', 
-        'joycaption', 'minicpm-v', 'cogvlm', 'internvl', 'fuyu', 'mplug', 
-        'xcomposer', 'kosmos', 'yi-vl', 'obsidian', 'qwen-vl'
+    const alwaysVision = [
+        'gpt-4o', 'claude-3', 'gemini-1.5', 'gemini-2', 'pixtral',
+        'molmo', 'internvl', 'minicpm-v', 'cogvlm', 'fuyu', 'grok'
     ];
-    if (visionKeywords.some(k => mid.includes(k))) return true;
+    if (alwaysVision.some(m => mid.includes(m))) {
+        if (mid.includes('grok-1')) return false;
+        return true;
+    }
 
-    if (mid.includes('gpt-4o') || mid.includes('gpt-4-vision') || mid.includes('chatgpt-4o')) return true;
-
-    if (mid.includes('claude-3')) return true;
-
-    if (mid.includes('gemini-1.5') || mid.includes('gemini-2') || mid.includes('gemini-3') || mid.includes('gemini-exp') || mid.includes('pro-vision')) return true;
-
-    if (mid.includes('grok-1.5v') || mid.includes('grok-2') || mid.includes('grok-3') || mid.includes('grok-4')) return true;
+    if (mid.includes('qwen')) {
+        if (mid.includes('qwen3') || mid.includes('qwen-3')) return true;
+        if (mid.includes('-vl') || mid.includes('-omni')) return true;
+    }
 
     if (mid.includes('llama-3.2') && (mid.includes('11b') || mid.includes('90b'))) return true;
 
-    if (mid.includes('qwen')) {
-        if (mid.includes('-vl') || mid.includes('omni') || mid.includes('qwen3') || mid.includes('qwen-3')) return true;
-    }
+    const visionKeywords = [
+        'vision', 'multimodal', 'llava', 'visual', '-v-', 'v1.5', 'v1.6',
+        'paligemma', 'blip', 'instructblip', 'joycaption', 'docling'
+    ];
+    if (visionKeywords.some(k => mid.includes(k))) return true;
 
     if (typeof currentApiProvider !== 'undefined' && currentApiProvider === 'gemini') {
         if (mid.includes('flash') || mid.includes('pro')) return true;
@@ -3791,8 +3718,6 @@ async function loadModels() {
     const customName = document.getElementById("custom-model-name");
     
     if (!modelSelect || !customSelector || !customList) return;
-
-    const modelDetailsMap = await fetchOpenRouterModelData();
     
     const apiConfig = await getApiConfig();
     const manualModelContainer = document.getElementById("manual-model-container");
@@ -3831,7 +3756,7 @@ async function loadModels() {
         sessionStorage.removeItem("pending_favorite_model_switch");
     }
 
-    const addCustomListItem = (value, text, hasVision, isSelected = false, sourceApi = null, modelDetails = null) => {
+    const addCustomListItem = (value, text, hasVision, isSelected = false, sourceApi = null) => {
         const div = document.createElement("div");
         div.className = "custom-model-item";
         div.dataset.value = value;
@@ -3840,41 +3765,10 @@ async function loadModels() {
         if (hasVision) div.classList.add("model-option-vision");
         else if (value !== "manual") div.classList.add("model-option-no-vision");
         
-        const textAndInfoContainer = document.createElement('div');
-        textAndInfoContainer.className = 'model-text-and-info';
-
         const textSpan = document.createElement("span");
         textSpan.className = "model-item-text";
         textSpan.textContent = text;
-        textAndInfoContainer.appendChild(textSpan);
-
-        if (modelDetails) {
-    const tagsContainer = document.createElement('div');
-    tagsContainer.className = 'model-info-tags';
-
-    const inputCost = formatPrice(modelDetails.pricing?.prompt);
-    const outputCost = formatPrice(modelDetails.pricing?.completion);
-    const context = formatContext(modelDetails.context_length);
-    
-    tagsContainer.innerHTML = `
-        <div class="info-pill">
-            <span class="info-label">IN ($/1M)</span>
-            <span class="info-value">${inputCost}</span>
-        </div>
-        <div class="info-pill">
-            <span class="info-label">OUT ($/1M)</span>
-            <span class="info-value">${outputCost}</span>
-        </div>
-        <div class="info-pill">
-            <span class="info-label">CONTEXT</span>
-            <span class="info-value">${context || '—'}</span>
-        </div>
-    `;
-    
-    textAndInfoContainer.appendChild(tagsContainer);
-}
-        
-        div.appendChild(textAndInfoContainer);
+        div.appendChild(textSpan);
 
         if (value !== "manual") {
             const favBtn = document.createElement("button");
@@ -3971,8 +3865,7 @@ async function loadModels() {
             if (fav.apiSource === apiSourceInput.value && savedModel === fav.id) {
                 isSelected = true;
             }
-            const details = modelDetailsMap.get(fav.id);
-            addCustomListItem(fav.id, fav.name, fav.hasVision, isSelected, fav.apiSource, details);
+            addCustomListItem(fav.id, fav.name, fav.hasVision, isSelected, fav.apiSource);
         });
 
         const allHeader = document.createElement("div");
@@ -4000,7 +3893,7 @@ async function loadModels() {
                     option.textContent = text;
                     if(isSelected) option.selected = true;
                     modelSelect.appendChild(option);
-                    addCustomListItem(model.name, text, hasVision, isSelected, null, modelDetailsMap.get(model.name));
+                    addCustomListItem(model.name, text, hasVision, isSelected);
                 });
                 addManualOption(savedModel === "manual");
                 if (savedModel === "manual") {
@@ -4042,13 +3935,12 @@ async function loadModels() {
                     const isSelected = savedModel === model.name;
                     if(isSelected) foundSaved = true;
                     const hasVision = hasVisionSupport(model.name);
-                    const details = modelDetailsMap.get("google/" + model.name.replace('models/', ''));
                     const option = document.createElement("option");
                     option.value = model.name;
                     option.textContent = model.displayName;
                     if(isSelected) option.selected = true;
                     modelSelect.appendChild(option);
-                    addCustomListItem(model.name, model.displayName, hasVision, isSelected, null, details);
+                    addCustomListItem(model.name, model.displayName, hasVision, isSelected);
                 });
                 addManualOption(savedModel === "manual");
                 if (savedModel === "manual") {
@@ -4101,13 +3993,12 @@ async function loadModels() {
                     const isSelected = savedModel === id;
                     if(isSelected) foundSaved = true;
                     const hasVision = hasVisionSupport(id);
-                    const details = modelDetailsMap.get(id);
                     const option = document.createElement("option");
                     option.value = id;
                     option.textContent = id;
                     if(isSelected) option.selected = true;
                     modelSelect.appendChild(option);
-                    addCustomListItem(id, id, hasVision, isSelected, null, details);
+                    addCustomListItem(id, id, hasVision, isSelected);
                 });
                 addManualOption(savedModel === "manual");
                 if (savedModel === "manual") {
