@@ -120,68 +120,6 @@ let currentTemperature = DEFAULT_TEMPERATURE;
 let currentUserSystemPrompt = "";
 const USER_NAME_STORAGE_KEY = "2b_chat_user_name";
 
-let openRouterModelData = null;
-
-async function fetchOpenRouterModelData() {
-   
-    if (openRouterModelData) return openRouterModelData;
-    
-    const cachedData = sessionStorage.getItem('openrouter_model_data');
-    if (cachedData) {
-        openRouterModelData = new Map(JSON.parse(cachedData));
-        return openRouterModelData;
-    }
-
-    try {
-        const response = await fetch("https://openrouter.ai/api/v1/models");
-        if (!response.ok) throw new Error("Falha na API do OpenRouter");
-        const data = await response.json();
-        
-        const modelMap = new Map();
-        if (data && data.data) {
-            data.data.forEach(model => {
-                modelMap.set(model.id, {
-                    pricing: model.pricing,
-                    context_length: model.context_length,
-                });
-            });
-        }
-        openRouterModelData = modelMap;
-        // Salva no cache da sessão
-        sessionStorage.setItem('openrouter_model_data', JSON.stringify(Array.from(modelMap.entries())));
-        return modelMap;
-    } catch (error) {
-        console.warn("Não foi possível buscar os dados de modelos do OpenRouter:", error);
-        return new Map(); // Retorna um mapa vazio em caso de erro
-    }
-}
-
-function formatPrice(priceString) {
-    if (!priceString) return '—'; 
-    let price = parseFloat(priceString) * 1000000;
-    if (price === 0) return '$0';
-    
-    price = Math.round(price * 10000) / 10000;
-    
-    let str = price.toString();
-    if (str.includes('.')) {
-        if (str.split('.')[1].length === 1) str += '0';
-    }
-    return '$' + str;
-}
-
-function formatContext(contextLength) {
-    if (!contextLength || contextLength === 0) return null;
-    if (contextLength >= 1000000) {
-        return `${(contextLength / 1000000).toFixed(2).replace('.00','')}M`;
-    }
-    if (contextLength >= 1000) {
-        return `${Math.round(contextLength / 1000)}K`;
-    }
-    return contextLength.toString();
-}
-
-
 function setupCustomModelDropdown() {
     const customSelector = document.getElementById("custom-model-selector") || document.querySelector('.custom-model-selector');
     const customDisplay = document.getElementById("custom-model-display") || document.querySelector('.custom-model-display');
@@ -505,6 +443,23 @@ function setupEventListeners() {
         e.stopPropagation();
         const messageDiv = editBtn.closest('.message');
         startUserMessageEdit(messageDiv);
+        return;
+    }
+
+    const botAudioPlayBtn = e.target.closest('.custom-ap-btn.play-btn');
+    if (botAudioPlayBtn) {
+        e.stopPropagation();
+        const audioSrc = botAudioPlayBtn.getAttribute('data-audio-src');
+        const playerId = botAudioPlayBtn.getAttribute('data-player-id');
+        playBotAudio(audioSrc, botAudioPlayBtn, playerId);
+        return;
+    }
+
+    const botAudioDownloadBtn = e.target.closest('.custom-ap-btn.download-btn');
+    if (botAudioDownloadBtn) {
+        e.stopPropagation();
+        const audioSrc = botAudioDownloadBtn.getAttribute('data-audio-src');
+        downloadBotAudio(audioSrc, botAudioDownloadBtn);
         return;
     }
 
@@ -1575,6 +1530,25 @@ async function fetchBotResponse() {
         return;
     }
 
+    const _cs = document.getElementById("custom-model-selector");
+    let _earlyModel = (_cs && _cs.style.display !== "none")
+        ? document.getElementById("model-select")?.value
+        : document.getElementById("manual-model-input")?.value?.trim();
+    if (_earlyModel === "manual" || !_earlyModel) {
+        _earlyModel = document.getElementById("manual-model-input")?.value?.trim();
+    }
+
+    abortController = new AbortController();
+
+    if (_earlyModel && isAudioModel(_earlyModel)) {
+        await fetchAudioFromModel(apiConfig, _earlyModel);
+        return;
+    }
+    if (_earlyModel && isImageGenModel(_earlyModel)) {
+        await fetchImageFromModel(apiConfig, _earlyModel);
+        return;
+    }
+
     typingAnimation.style.display = "flex";
     setTimeout(() => {
         scrollToBottom("smooth");
@@ -1589,8 +1563,6 @@ async function fetchBotResponse() {
     let responseDiv = null;
     const botMessageTimestamp = Date.now();
     let currentAssistantMessage = { role: "assistant", content: "", timestamp: botMessageTimestamp };
-
-    abortController = new AbortController();
 
     const MAX_ATTEMPTS = 2;
     let lastError = null;
@@ -1711,6 +1683,7 @@ async function fetchBotResponse() {
             let buffer = '';
             let receivedAnyData = false;
             let isFirstChunk = true;
+            const pendingInlineMediaParts = [];
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -1728,7 +1701,19 @@ async function fetchBotResponse() {
                         try { const data = JSON.parse(line); chunkContent = data.message?.content; } catch (e) {}
                     } else if (apiConfig.provider === 'gemini') {
                         if (line.startsWith('data: ')) {
-                            try { const data = JSON.parse(line.substring(6)); chunkContent = data?.candidates?.[0]?.content?.parts?.[0]?.text; } catch (e) {}
+                            try {
+                                const data = JSON.parse(line.substring(6));
+                                const _pts = data?.candidates?.[0]?.content?.parts || [];
+                                chunkContent = _pts.find(p => p.text != null)?.text ?? null;
+                                _pts.forEach(p => {
+                                    if (p.inlineData) {
+                                        const _mt = p.inlineData.mimeType || '';
+                                        if (_mt.startsWith('audio/') || _mt.startsWith('image/')) {
+                                            pendingInlineMediaParts.push({ data: p.inlineData.data, mimeType: _mt });
+                                        }
+                                    }
+                                });
+                            } catch (e) {}
                         }
                     } else {
                         if (line.startsWith('data: ')) {
@@ -1783,7 +1768,25 @@ async function fetchBotResponse() {
                     }
                 }
             }
-            
+
+            if (pendingInlineMediaParts.length > 0) {
+                receivedAnyData = true;
+                for (const mediaPart of pendingInlineMediaParts) {
+                    const mediaTs = Date.now();
+                    if (mediaPart.mimeType.startsWith('audio/')) {
+                        const audioUrl = await inlineDataToUrl(mediaPart.data, mediaPart.mimeType);
+                        const ac = [{ type: 'audio', url: audioUrl }];
+                        addMessage(ac, false, true, mediaTs);
+                        addMessageToHistory(currentChatId, { role: 'assistant', content: ac, timestamp: mediaTs });
+                    } else if (mediaPart.mimeType.startsWith('image/')) {
+                        const imgUrl = `data:${mediaPart.mimeType};base64,${mediaPart.data}`;
+                        const ic = [{ type: 'generated_image', url: imgUrl }];
+                        addMessage(ic, false, true, mediaTs);
+                        addMessageToHistory(currentChatId, { role: 'assistant', content: ic, timestamp: mediaTs });
+                    }
+                }
+            }
+
             if (!receivedAnyData) {
                 throw new Error("Resposta vazia do servidor.");
             }
@@ -1882,6 +1885,209 @@ async function fetchBotResponse() {
     isBotStreaming = false;
 }
 
+function inlineDataToUrl(base64Data, mimeType) {
+    if (!mimeType.includes('pcm')) {
+        return Promise.resolve(`data:${mimeType};base64,${base64Data}`);
+    }
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+    const sampleRate = 24000;
+    const wavBuffer = new ArrayBuffer(44 + bytes.length);
+    const view = new DataView(wavBuffer);
+    const ws = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+    ws(0, 'RIFF'); view.setUint32(4, 36 + bytes.length, true);
+    ws(8, 'WAVE'); ws(12, 'fmt '); view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    ws(36, 'data'); view.setUint32(40, bytes.length, true);
+    new Uint8Array(wavBuffer, 44).set(bytes);
+    const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+    return new Promise(resolve => { const r = new FileReader(); r.onloadend = () => resolve(r.result); r.readAsDataURL(blob); });
+}
+
+async function fetchAudioFromModel(apiConfig, selectedModel) {
+    const historyForApi = await getHistoryForApi(currentChatId);
+    const lastUserMsg = [...historyForApi].reverse().find(m => m.role === 'user');
+    const textToSynthesize = typeof lastUserMsg?.content === 'string'
+        ? lastUserMsg.content
+        : lastUserMsg?.content?.find(p => p.type === 'text')?.text || '';
+    if (!textToSynthesize.trim()) {
+        displayErrorWithRetry('Nenhum texto para sintetizar em áudio.');
+        isBotStreaming = false; messageInput.disabled = false; restoreSendButton(); return;
+    }
+    typingAnimation.style.display = 'flex';
+    scrollToBottom('smooth');
+    messageInput.disabled = true;
+    updateButtonToStop();
+    isBotStreaming = true;
+    startThinkingVibration();
+    try {
+        let audioUrl = null;
+        if (apiConfig.provider === 'gemini') {
+            const mn = selectedModel.includes('/') ? selectedModel : `models/${selectedModel}`;
+            const apiKeyToUse = apiConfig.apiKey || getGeminiApiKey(); 
+            const baseUrl = `https://generativelanguage.googleapis.com/v1beta/${mn}:generateContent?key=${apiKeyToUse}`;
+            
+            const response = await fetch(baseUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ role: "user", parts: [{ text: textToSynthesize }] }],
+                    generationConfig: {
+                        temperature: 1,
+                        responseModalities: ["AUDIO"],
+                        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Leda" } } }
+                    },
+                    safetySettings: [
+                        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                    ]
+                }), signal: abortController.signal
+            });
+            if (!response.ok) {
+                let errBody = "";
+                try {
+                    const errData = await response.json();
+                    errBody = errData.error?.message || JSON.stringify(errData);
+                } catch(e) {
+                    errBody = response.statusText;
+                }
+                if (response.status === 429) {
+                    throw new Error(`Limite de requisições excedido (Erro 429). A API de áudio gratuita tem limite baixo de uso por minuto. Aguarde um instante e tente novamente.`);
+                }
+                throw new Error(`Erro ${response.status}: ${errBody}`);
+            }
+            const data = await response.json();
+            const audioPart = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData && p.inlineData.mimeType.startsWith("audio/"));
+            if (!audioPart || !audioPart.inlineData || !audioPart.inlineData.data) {
+                const candidatesInfo = JSON.stringify(data.candidates?.[0] || data);
+                throw new Error(`Modelo não retornou áudio.\nTexto enviado: "${textToSynthesize}"\nRetornou: ${candidatesInfo}`);
+            }
+            if (audioPart.inlineData.data.length < 50) {
+                throw new Error(`Áudio retornado é vazio ou muito curto. Tamanho BASE64: ${audioPart.inlineData.data.length} bytes.\nTexto enviado: "${textToSynthesize}"`);
+            }
+            audioUrl = await inlineDataToUrl(audioPart.inlineData.data, audioPart.inlineData.mimeType);
+        } else {
+            const isDashScope = apiConfig.url.includes('dashscope');
+            const voice = selectedModel.toLowerCase().includes('playai') ? 'Fritz-PlayAI' : 'nova';
+            let response;
+            try {
+                if (isDashScope) {
+                    const dashScopeUrl = apiConfig.url.replace('/compatible-mode/v1', '/api/v1/services/audio/text-to-speech/text-to-speech');
+                    response = await fetch(dashScopeUrl, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${apiConfig.apiKey}`, 'Content-Type': 'application/json', 'X-DashScope-Async': 'false' },
+                        body: JSON.stringify({ model: selectedModel.replace(' [audio]', ''), input: { text: textToSynthesize }, parameters: { format: 'mp3' } }),
+                        signal: abortController.signal
+                    });
+                } else {
+                    response = await fetch(`${apiConfig.url}/audio/speech`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${apiConfig.apiKey}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ model: selectedModel, input: textToSynthesize, voice, response_format: 'mp3' }),
+                        signal: abortController.signal
+                    });
+                }
+            } catch (networkError) {
+                if (networkError.name === 'TypeError' && networkError.message.includes('fetch')) {
+                    throw new Error(`O servidor bloqueou a conexão (CORS) ou a rota "/audio/speech" não existe no provedor da sua API (${apiConfig.url}).`);
+                }
+                throw networkError;
+            }
+            if (!response.ok) { const e = await response.json().catch(() => ({})); throw new Error(e.error?.message || `Erro ${response.status}`); }
+            const blob = await response.blob();
+            audioUrl = await new Promise(resolve => { const r = new FileReader(); r.onloadend = () => resolve(r.result); r.readAsDataURL(blob); });
+        }
+        successVibration();
+        const botTs = Date.now();
+        const audioContent = [{ type: 'audio', url: audioUrl }];
+        const assistantMsg = { role: 'assistant', content: audioContent, timestamp: botTs };
+        addMessageToHistory(currentChatId, assistantMsg);
+        saveChatsToPersistence();
+        updateChatList();
+        addMessage(audioContent, false, true, botTs);
+    } catch (error) {
+        if (error.name !== 'AbortError') { errorVibration(); displayErrorWithRetry(`Erro ao gerar áudio: ${error.message}`); }
+    } finally {
+        typingAnimation.style.display = 'none';
+        messageInput.disabled = false;
+        restoreSendButton();
+        adjustTextareaHeight();
+        abortController = null;
+        isBotStreaming = false;
+    }
+}
+
+async function fetchImageFromModel(apiConfig, selectedModel) {
+    const historyForApi = await getHistoryForApi(currentChatId);
+    const lastUserMsg = [...historyForApi].reverse().find(m => m.role === 'user');
+    const prompt = typeof lastUserMsg?.content === 'string'
+        ? lastUserMsg.content
+        : lastUserMsg?.content?.find(p => p.type === 'text')?.text || '';
+    if (!prompt.trim()) {
+        displayErrorWithRetry('Nenhum prompt para gerar imagem.');
+        isBotStreaming = false; messageInput.disabled = false; restoreSendButton(); return;
+    }
+    typingAnimation.style.display = 'flex';
+    scrollToBottom('smooth');
+    messageInput.disabled = true;
+    updateButtonToStop();
+    isBotStreaming = true;
+    startThinkingVibration();
+    try {
+        let imageUrl = null;
+        if (apiConfig.provider === 'gemini') {
+            const mn = selectedModel.includes('/') ? selectedModel : `models/${selectedModel}`;
+            const response = await fetch(`${apiConfig.url}/${mn}:generateContent?key=${apiConfig.apiKey}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                    generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
+                }), signal: abortController.signal
+            });
+            if (!response.ok) throw new Error(`Erro ${response.status}: ${response.statusText}`);
+            const data = await response.json();
+            const imgPart = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData?.mimeType?.startsWith('image/'));
+            if (!imgPart) throw new Error(`Modelo não retornou imagem. Retornou: ${JSON.stringify(data.candidates?.[0]?.content?.parts || data)}`);
+            imageUrl = `data:${imgPart.inlineData.mimeType};base64,${imgPart.inlineData.data}`;
+        } else {
+            const size = selectedModel.includes('dall-e-3') ? '1024x1024' : '512x512';
+            const response = await fetch(`${apiConfig.url}/images/generations`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${apiConfig.apiKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: selectedModel, prompt, n: 1, size, response_format: 'url' }),
+                signal: abortController.signal
+            });
+            if (!response.ok) { const e = await response.json().catch(() => ({})); throw new Error(e.error?.message || `Erro ${response.status}`); }
+            const data = await response.json();
+            const item = data.data?.[0];
+            imageUrl = item?.b64_json ? `data:image/png;base64,${item.b64_json}` : item?.url;
+            if (!imageUrl) throw new Error('Nenhuma imagem retornada.');
+        }
+        successVibration();
+        const botTs = Date.now();
+        const imgContent = [{ type: 'generated_image', url: imageUrl }];
+        const assistantMsg = { role: 'assistant', content: imgContent, timestamp: botTs };
+        addMessageToHistory(currentChatId, assistantMsg);
+        saveChatsToPersistence();
+        updateChatList();
+        addMessage(imgContent, false, true, botTs);
+    } catch (error) {
+        if (error.name !== 'AbortError') { errorVibration(); displayErrorWithRetry(`Erro ao gerar imagem: ${error.message}`); }
+    } finally {
+        typingAnimation.style.display = 'none';
+        messageInput.disabled = false;
+        restoreSendButton();
+        adjustTextareaHeight();
+        abortController = null;
+        isBotStreaming = false;
+    }
+}
+
 function regenerateFromMessage(messageDiv) {
     if (!messageDiv) return;
 
@@ -1976,14 +2182,18 @@ function addMessage(rawContent, isUser = false, shouldScroll = true, messageTime
     let textContentForCopy = "";
     let mediaItems = [];
 
+    let audioItems = [];
+
     if (typeof rawContent === "string") {
         textContentForCopy = rawContent;
     } else if (Array.isArray(rawContent)) {
         rawContent.forEach(part => {
             if (part.type === "text") {
                 textContentForCopy += part.text;
-            } else if ((part.type === "image_url" || part.type === "file_uri") && part.url) {
+            } else if ((part.type === "image_url" || part.type === "file_uri" || part.type === "generated_image") && part.url) {
                 mediaItems.push(part);
+            } else if (part.type === "audio" && part.url) {
+                audioItems.push(part);
             }
         });
     }
@@ -1991,22 +2201,52 @@ function addMessage(rawContent, isUser = false, shouldScroll = true, messageTime
     messageDiv.dataset.originalContent = textContentForCopy;
 
     let contentHtml = "";
-    
+
     if (mediaItems.length > 0) {
         let gridClass = `media-grid grid-${Math.min(mediaItems.length, 4)}`;
         contentHtml += `<div class="${gridClass}">`;
-        
+
         mediaItems.forEach((media, index) => {
             if (index >= 4) return;
             const isVideo = media.mime_type && media.mime_type.startsWith("video/");
+            const isAiGen = media.type === "generated_image";
             if (isVideo) {
                 contentHtml += `<div class="media-item"><video src="${media.url}" controls playsinline webkit-playsinline preload="metadata" onloadeddata="this.currentTime=0.1" class="message-video-thumbnail"></video></div>`;
             } else {
-                contentHtml += `<div class="media-item"><img src="${media.url}" alt="Imagem" class="message-image-thumbnail" loading="lazy"></div>`;
+                contentHtml += `<div class="media-item${isAiGen ? ' ai-generated-media' : ''}"><img src="${media.url}" alt="${isAiGen ? 'Imagem gerada por IA' : 'Imagem'}" class="message-image-thumbnail" loading="lazy">${isAiGen ? '<span class="ai-gen-label">✨ IA</span>' : ''}</div>`;
             }
         });
         contentHtml += `</div>`;
     }
+
+    audioItems.forEach((audio, index) => {
+        const playerId = `bot-audio-${messageId}-${index}`;
+        contentHtml += `
+            <div class="custom-audio-player" id="${playerId}">
+                <button class="custom-ap-btn play-btn" data-audio-src="${audio.url}" data-player-id="${playerId}">
+                    <i class="fas fa-play"></i>
+                </button>
+                <div class="custom-ap-waveform">
+                    ${Array.from({length: 20}, () => `<div class="ap-bar" style="height: ${20 + Math.random() * 80}%"></div>`).join('')}
+                </div>
+                <span class="custom-ap-time" id="time-${playerId}">...</span>
+                <audio style="display:none" preload="metadata" src="${audio.url}" onloadedmetadata="
+                    const d = this.duration; 
+                    if (!isNaN(d)) { 
+                        const mins = Math.floor(d / 60); 
+                        const secs = Math.floor(d % 60).toString().padStart(2, '0'); 
+                        const s = document.getElementById('time-${playerId}'); 
+                        if(s) s.textContent = mins + ':' + secs; 
+                    }
+                "></audio>
+                <div class="custom-ap-actions">
+                    <button class="custom-ap-btn download-btn" data-audio-src="${audio.url}" title="Baixar áudio">
+                        <i class="fas fa-download"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    });
 
     if (textContentForCopy) {
         const cleanedTextForDisplay = cleanTextForUI(textContentForCopy);
@@ -2290,37 +2530,49 @@ function hasVisionSupport(modelId) {
     if (!modelId) return false;
     const mid = modelId.toLowerCase();
 
-    const textOrAudioOnly = ['embedding', 'bge-', 'nomic', 'dall-e', 'midjourney', 'stable-diffusion', 'whisper', 'tts-1'];
-    if (textOrAudioOnly.some(k => mid.includes(k))) return false;
-
-    const visionKeywords = [
-        'vision', 'visual', 'multimodal', '-vl', 'llava', 'bakllava', 
-        'pixtral', 'molmo', 'idefics', 'paligemma', 'gemigemma', 'blip', 'docling', 
-        'moondream', 'chameleon', 'florence', 'smolvlm', 'granite-vision', 
-        'joycaption', 'minicpm-v', 'cogvlm', 'internvl', 'fuyu', 'mplug', 
-        'xcomposer', 'kosmos', 'yi-vl', 'obsidian', 'qwen-vl'
+    const alwaysVision = [
+        'gpt-4o', 'claude-3', 'gemini-1.5', 'gemini-2', 'pixtral',
+        'molmo', 'internvl', 'minicpm-v', 'cogvlm', 'fuyu', 'grok'
     ];
-    if (visionKeywords.some(k => mid.includes(k))) return true;
+    if (alwaysVision.some(m => mid.includes(m))) {
+        if (mid.includes('grok-1')) return false;
+        return true;
+    }
 
-    if (mid.includes('gpt-4o') || mid.includes('gpt-4-vision') || mid.includes('chatgpt-4o')) return true;
-
-    if (mid.includes('claude-3')) return true;
-
-    if (mid.includes('gemini-1.5') || mid.includes('gemini-2') || mid.includes('gemini-3') || mid.includes('gemini-exp') || mid.includes('pro-vision')) return true;
-
-    if (mid.includes('grok-1.5v') || mid.includes('grok-2') || mid.includes('grok-3') || mid.includes('grok-4')) return true;
+    if (mid.includes('qwen')) {
+        if (mid.includes('qwen3') || mid.includes('qwen-3')) return true;
+        if (mid.includes('-vl') || mid.includes('-omni')) return true;
+    }
 
     if (mid.includes('llama-3.2') && (mid.includes('11b') || mid.includes('90b'))) return true;
 
-    if (mid.includes('qwen')) {
-        if (mid.includes('-vl') || mid.includes('omni') || mid.includes('qwen3') || mid.includes('qwen-3')) return true;
-    }
+    const visionKeywords = [
+        'vision', 'multimodal', 'llava', 'visual', '-v-', 'v1.5', 'v1.6',
+        'paligemma', 'blip', 'instructblip', 'joycaption', 'docling'
+    ];
+    if (visionKeywords.some(k => mid.includes(k))) return true;
 
     if (typeof currentApiProvider !== 'undefined' && currentApiProvider === 'gemini') {
         if (mid.includes('flash') || mid.includes('pro')) return true;
     }
 
     return false;
+}
+
+function isAudioModel(modelId) {
+    if (!modelId) return false;
+    const mid = modelId.toLowerCase();
+    return mid.includes('tts') || mid.includes('playai') ||
+           mid.includes('audio-preview') || mid.includes('realtime');
+}
+
+function isImageGenModel(modelId) {
+    if (!modelId) return false;
+    const mid = modelId.toLowerCase();
+    return mid.includes('dall-e') || mid.includes('dalle') ||
+           mid.includes('imagen') || mid.includes('flux') ||
+           mid.includes('stable-diffusion') ||
+           (mid.includes('image') && mid.includes('gen'));
 }
 
 function updateVisionIndicator() {
@@ -3302,6 +3554,88 @@ async function speakText(rawText, button, messageDiv) {
     }
 }
 
+let currentCustomPlayer = null;
+
+function playBotAudio(audioSrc, buttonElement, playerId) {
+    if (currentCustomPlayer && currentCustomPlayer.btn === buttonElement && currentAudio) {
+        if (!currentAudio.paused) {
+            currentAudio.pause();
+            buttonElement.innerHTML = '<i class="fas fa-play"></i>';
+            currentCustomPlayer.playerDiv?.classList.remove('playing');
+        } else {
+            currentAudio.play();
+            buttonElement.innerHTML = '<i class="fas fa-pause"></i>';
+            currentCustomPlayer.playerDiv?.classList.add('playing');
+        }
+        return;
+    }
+
+    if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+    }
+    if (currentCustomPlayer && currentCustomPlayer.btn) {
+        currentCustomPlayer.btn.innerHTML = '<i class="fas fa-play"></i>';
+        currentCustomPlayer.playerDiv?.classList.remove('playing');
+        clearInterval(currentCustomPlayer.interval);
+    }
+
+    currentAudio = new window.Audio(audioSrc);
+    const playerDiv = document.getElementById(playerId);
+    const timeSpan = document.getElementById(`time-${playerId}`) || playerDiv?.querySelector('.custom-ap-time');
+    
+    currentAudio.onplay = () => {
+        buttonElement.innerHTML = "<i class=\"fas fa-pause\"></i>";
+        if (playerDiv) playerDiv.classList.add('playing');
+        currentCustomPlayer = { 
+            btn: buttonElement, 
+            playerDiv: playerDiv, 
+            interval: setInterval(() => {
+                if (timeSpan && currentAudio) {
+                    const s = Math.floor(currentAudio.currentTime % 60).toString().padStart(2, '0');
+                    const m = Math.floor(currentAudio.currentTime / 60);
+                    timeSpan.textContent = `${m}:${s}`;
+                }
+            }, 1000) 
+        };
+    };
+    
+    currentAudio.onended = () => {
+        buttonElement.innerHTML = '<i class="fas fa-play"></i>';
+        if (playerDiv) playerDiv.classList.remove('playing');
+        if (currentCustomPlayer) { clearInterval(currentCustomPlayer.interval); currentCustomPlayer = null; }
+        currentAudio = null;
+    };
+
+    currentAudio.onerror = () => {
+        buttonElement.innerHTML = '<i class="fas fa-play"></i>';
+        if (playerDiv) playerDiv.classList.remove('playing');
+        if (currentCustomPlayer) { clearInterval(currentCustomPlayer.interval); currentCustomPlayer = null; }
+        currentAudio = null;
+        showCustomAlert("Erro de reprodução", "Não foi possível reproduzir este áudio. Pode estar corrompido ou expirado.");
+    };
+
+    currentAudio.play().catch(e => {
+        buttonElement.innerHTML = '<i class="fas fa-play"></i>';
+        if (playerDiv) playerDiv.classList.remove('playing');
+        if (currentCustomPlayer) { clearInterval(currentCustomPlayer.interval); currentCustomPlayer = null; }
+        currentAudio = null;
+    });
+}
+
+function downloadBotAudio(audioSrc, buttonElement) {
+    try {
+        const a = document.createElement('a');
+        a.href = audioSrc;
+        a.download = `audio_${Date.now()}.wav`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    } catch(e) {
+        showCustomAlert("Erro", "Não foi possível baixar o áudio.");
+    }
+}
+
 function playAudioData(audioDataUrl, button, targetMessage = null) {
     if (currentAudio) {
         currentAudio.pause();
@@ -3777,16 +4111,50 @@ function getCurrentApiKeyStorageKey() {
     return `2b_chat_${currentApiProvider}_api_key`;
 }
 
+function formatPrice(pricePerToken) {
+    if (pricePerToken == null || isNaN(pricePerToken)) return "—";
+    const pricePerMillion = (pricePerToken * 1_000_000);
+    if (pricePerMillion < 0.01) return "<$0.01";
+    return `$${pricePerMillion.toFixed(2)}`;
+}
+
+function formatContext(contextLength) {
+    if (!contextLength) return null;
+    if (contextLength >= 1_000_000) return (contextLength / 1_000_000).toFixed(0) + "M";
+    if (contextLength >= 1_000) return (contextLength / 1_000).toFixed(0) + "K";
+    return String(contextLength);
+}
+
+async function fetchOpenRouterModelData() {
+    try {
+        const response = await fetch("https://openrouter.ai/api/v1/models");
+        if (!response.ok) return new Map();
+        const data = await response.json();
+        const map = new Map();
+        (data.data || []).forEach(m => {
+            const id = m.id;
+            map.set(id, {
+                context_length: m.context_length || null,
+                pricing: m.pricing || null
+            });
+        });
+        return map;
+    } catch (e) {
+        console.warn("Falha ao buscar dados do OpenRouter:", e.message);
+        return new Map();
+    }
+}
+
 async function loadModels() {
     const modelSelect = document.getElementById("model-select");
     const customSelector = document.getElementById("custom-model-selector");
     const customList = document.querySelector(".custom-model-list");
     const customName = document.getElementById("custom-model-name");
-    
+
     if (!modelSelect || !customSelector || !customList) return;
 
     const modelDetailsMap = await fetchOpenRouterModelData();
-    
+
     const apiConfig = await getApiConfig();
     const manualModelContainer = document.getElementById("manual-model-container");
     const manualModelInput = document.getElementById("manual-model-input");
@@ -3828,11 +4196,13 @@ async function loadModels() {
         const div = document.createElement("div");
         div.className = "custom-model-item";
         div.dataset.value = value;
-        
+
         if (isSelected) div.classList.add("selected");
         if (hasVision) div.classList.add("model-option-vision");
         else if (value !== "manual") div.classList.add("model-option-no-vision");
-        
+        if (value !== "manual" && isAudioModel(value)) div.classList.add("model-cap-audio");
+        if (value !== "manual" && isImageGenModel(value)) div.classList.add("model-cap-imagegen");
+
         const textAndInfoContainer = document.createElement('div');
         textAndInfoContainer.className = 'model-text-and-info';
 
@@ -3841,35 +4211,41 @@ async function loadModels() {
         textSpan.textContent = text;
         textAndInfoContainer.appendChild(textSpan);
 
-        if (modelDetails) {
-    const tagsContainer = document.createElement('div');
-    tagsContainer.className = 'model-info-tags';
+        if (value !== "manual" && modelDetails) {
+            const tagsContainer = document.createElement('div');
+            tagsContainer.className = 'model-info-tags';
 
-    const inputCost = formatPrice(modelDetails.pricing?.prompt);
-    const outputCost = formatPrice(modelDetails.pricing?.completion);
-    const context = formatContext(modelDetails.context_length);
-    
-    tagsContainer.innerHTML = `
-        <div class="info-pill">
-            <span class="info-label">IN ($/1M)</span>
-            <span class="info-value">${inputCost}</span>
-        </div>
-        <div class="info-pill">
-            <span class="info-label">OUT ($/1M)</span>
-            <span class="info-value">${outputCost}</span>
-        </div>
-        <div class="info-pill">
-            <span class="info-label">CONTEXT</span>
-            <span class="info-value">${context || '—'}</span>
-        </div>
-    `;
-    
-    textAndInfoContainer.appendChild(tagsContainer);
-}
-        
+            const inputCost = formatPrice(modelDetails.pricing?.prompt);
+            const outputCost = formatPrice(modelDetails.pricing?.completion);
+            const context = formatContext(modelDetails.context_length);
+
+            tagsContainer.innerHTML = `
+                <div class="info-pill">
+                    <span class="info-label">IN ($/1M)</span>
+                    <span class="info-value">${inputCost}</span>
+                </div>
+                <div class="info-pill">
+                    <span class="info-label">OUT ($/1M)</span>
+                    <span class="info-value">${outputCost}</span>
+                </div>
+                <div class="info-pill">
+                    <span class="info-label">CONTEXT</span>
+                    <span class="info-value">${context || '—'}</span>
+                </div>
+            `;
+
+            textAndInfoContainer.appendChild(tagsContainer);
+        }
+
         div.appendChild(textAndInfoContainer);
 
         if (value !== "manual") {
+            const _caps = document.createElement("span");
+            _caps.className = "model-caps";
+            if (isAudioModel(value)) _caps.innerHTML += '<span class="cap-badge cap-audio" title="Suporte e geração de áudio"><i class="fas fa-volume-up"></i></span>';
+            if (isImageGenModel(value)) _caps.innerHTML += '<span class="cap-badge cap-image" title="Geração de imagens"><i class="fas fa-image"></i></span>';
+            if (hasVision) _caps.innerHTML += '<span class="cap-badge cap-vision" title="Suporte a visão computacional"><i class="fas fa-eye"></i></span>';
+            if (_caps.innerHTML) div.appendChild(_caps);
             const favBtn = document.createElement("button");
             favBtn.className = "model-favorite-btn";
             const favs = getFavoriteModels();
@@ -3886,7 +4262,7 @@ async function loadModels() {
             });
             div.appendChild(favBtn);
         }
-        
+
         div.addEventListener("click", (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -3905,9 +4281,9 @@ async function loadModels() {
 
             modelSelect.value = value;
             if(customName) customName.textContent = text;
-            
+
             document.getElementById("custom-model-dropdown").classList.remove("active");
-            
+
             if (value === "manual") {
                 setManualMode(true);
                 if (manualModelInput) manualModelInput.focus();
@@ -4051,10 +4427,10 @@ async function loadModels() {
                         const targets = ["gemini-1.5-flash-latest", "gemini-1.5-pro-latest", "gemini-pro"];
                         for (const target of targets) {
                             const opt = Array.from(modelSelect.options).find(o => o.value.toLowerCase().includes(target.replace("gemini-", "")));
-                            if (opt) { 
-                                opt.selected = true; 
-                                foundSaved = true; 
-                                break; 
+                            if (opt) {
+                                opt.selected = true;
+                                foundSaved = true;
+                                break;
                             }
                         }
                     }
@@ -4199,7 +4575,8 @@ window.handlePastedImageFromNative = function(mimeType, base64String) {
 };
 
 function handlePaste(event) {
-    if (currentApiProvider !== "gemini") return;
+    const _supportsImages = ['gemini', 'openai', 'groq', 'grok', 'custom'].includes(currentApiProvider);
+    if (!_supportsImages) return;
     const items = (event.clipboardData || event.originalEvent.clipboardData)?.items;
     if (!items) return;
 
