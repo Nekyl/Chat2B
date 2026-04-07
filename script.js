@@ -2221,24 +2221,20 @@ function addMessage(rawContent, isUser = false, shouldScroll = true, messageTime
 
     audioItems.forEach((audio, index) => {
         const playerId = `bot-audio-${messageId}-${index}`;
+        const waveId = `waveform-${playerId}`;
+        const scrubId = `scrubber-${playerId}`;
+        const timeId = `time-${playerId}`;
         contentHtml += `
-            <div class="custom-audio-player" id="${playerId}">
-                <button class="custom-ap-btn play-btn" data-audio-src="${audio.url}" data-player-id="${playerId}">
+            <div class="custom-audio-player" id="${playerId}" data-audio-src="${audio.url}" data-player-id="${playerId}">
+                <button class="custom-ap-btn play-btn" data-player-id="${playerId}" data-audio-src="${audio.url}">
                     <i class="fas fa-play"></i>
                 </button>
-                <div class="custom-ap-waveform">
-                    ${Array.from({length: 20}, () => `<div class="ap-bar" style="height: ${20 + Math.random() * 80}%"></div>`).join('')}
+                <div class="custom-ap-waveform" id="${waveId}" data-audio-src="${audio.url}" data-player-id="${playerId}">
+                    <canvas id="${waveId}-bg"></canvas>
+                    <canvas id="${waveId}-fg"></canvas>
+                    <div class="custom-ap-scrubber" id="${scrubId}"></div>
                 </div>
-                <span class="custom-ap-time" id="time-${playerId}">...</span>
-                <audio style="display:none" preload="metadata" src="${audio.url}" onloadedmetadata="
-                    const d = this.duration; 
-                    if (!isNaN(d)) { 
-                        const mins = Math.floor(d / 60); 
-                        const secs = Math.floor(d % 60).toString().padStart(2, '0'); 
-                        const s = document.getElementById('time-${playerId}'); 
-                        if(s) s.textContent = mins + ':' + secs; 
-                    }
-                "></audio>
+                <span class="custom-ap-time" id="${timeId}">...</span>
                 <div class="custom-ap-actions">
                     <button class="custom-ap-btn download-btn" data-audio-src="${audio.url}" title="Baixar áudio">
                         <i class="fas fa-download"></i>
@@ -2258,7 +2254,9 @@ function addMessage(rawContent, isUser = false, shouldScroll = true, messageTime
         ? `<div class="avatar user-avatar"><i class="fas fa-user-secret"></i></div>`
         : `<div class="avatar bot-avatar"><i class="fas fa-robot"></i></div>`;
 
-    const timeStampHtml = `<small class="message-timestamp">${getCurrentTime()}</small>`;
+    const ts = messageTimestamp ? new Date(messageTimestamp) : new Date();
+    const timeStr = `${String(ts.getHours()).padStart(2, "0")}:${String(ts.getMinutes()).padStart(2, "0")}`;
+    const timeStampHtml = `<small class="message-timestamp">${timeStr}</small>`;
 
     const copyButtonHtml = `<button class="message-action-btn copy-message" title="Copiar texto da mensagem"><i class="fas fa-copy"></i></button>`;
 
@@ -3556,68 +3554,289 @@ async function speakText(rawText, button, messageDiv) {
 
 let currentCustomPlayer = null;
 
+// Polyfill roundRect para Canvas em navegadores mais antigos
+if (CanvasRenderingContext2D && !CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+        if (w < 2 * r) r = w / 2;
+        if (h < 2 * r) r = h / 2;
+        this.moveTo(x + r, y);
+        this.arcTo(x + w, y, x + w, y + h, r);
+        this.arcTo(x + w, y + h, x, y + h, r);
+        this.arcTo(x, y + h, x, y, r);
+        this.arcTo(x, y, x + w, y, r);
+        this.closePath();
+        return this;
+    };
+}
+
+// Waveform cache: audio URL -> array of bar heights (0-1)
+const waveformCache = new Map();
+
+async function renderWaveformFromAudioUrl(audioUrl, waveformEl) {
+    try {
+        // Wait a frame to ensure element has dimensions
+        await new Promise(r => requestAnimationFrame(r));
+
+        const rect = waveformEl.getBoundingClientRect();
+        if (rect.width < 1 || rect.height < 1) return;
+
+        // Check cache first
+        let bars = waveformCache.get(audioUrl);
+        if (!bars) {
+            let arrayBuffer;
+            if (audioUrl.startsWith('data:')) {
+                // Decode data URL directly without fetch
+                const commaIdx = audioUrl.indexOf(',');
+                const base64Data = audioUrl.substring(commaIdx + 1);
+                const binaryString = atob(base64Data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                arrayBuffer = bytes.buffer;
+            } else {
+                const response = await fetch(audioUrl);
+                arrayBuffer = await response.arrayBuffer();
+            }
+
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            const rawData = audioBuffer.getChannelData(0);
+
+            // Store duration so we can display it on the time element immediately
+            waveformCache.set(audioUrl + '__duration', audioBuffer.duration);
+            const numBars = 40;
+            const samplesPerBar = Math.floor(rawData.length / numBars);
+            bars = [];
+            for (let i = 0; i < numBars; i++) {
+                let sum = 0;
+                const start = i * samplesPerBar;
+                for (let j = 0; j < samplesPerBar; j++) {
+                    const sample = rawData[start + j];
+                    sum += sample * sample;
+                }
+                const rms = Math.sqrt(sum / samplesPerBar);
+                bars.push(Math.max(0.05, Math.min(1, rms * 3)));
+            }
+            audioContext.close();
+            waveformCache.set(audioUrl, bars);
+        }
+
+        const bgCanvas = waveformEl.querySelector('canvas[id$="-bg"]');
+        const fgCanvas = waveformEl.querySelector('canvas[id$="-fg"]');
+        if (!bgCanvas || !fgCanvas) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        bgCanvas.width = rect.width * dpr;
+        bgCanvas.height = rect.height * dpr;
+        fgCanvas.width = rect.width * dpr;
+        fgCanvas.height = rect.height * dpr;
+        bgCanvas.style.width = rect.width + 'px';
+        bgCanvas.style.height = rect.height + 'px';
+        fgCanvas.style.width = rect.width + 'px';
+        fgCanvas.style.height = rect.height + 'px';
+
+        const bgCtx = bgCanvas.getContext('2d');
+        const fgCtx = fgCanvas.getContext('2d');
+        bgCtx.scale(dpr, dpr);
+        fgCtx.scale(dpr, dpr);
+
+        const isNarrowScreen = rect.width < 320;
+        const numBars = isNarrowScreen ? 28 : 40;
+        const barGap = 2;
+        const barWidth = (rect.width - barGap * (bars.length - 1)) / bars.length;
+
+        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const barColorBg = isDark ? 'rgba(243, 244, 246, 0.35)' : 'rgba(17, 24, 39, 0.25)';
+        const barColorFg = isDark ? '#f3f4f6' : '#111827';
+
+        // Background bars (unplayed - dimmer)
+        bars.forEach((h, i) => {
+            const barH = h * rect.height;
+            const x = i * (barWidth + barGap);
+            const y = (rect.height - barH) / 2;
+            bgCtx.fillStyle = barColorBg;
+            bgCtx.beginPath();
+            bgCtx.roundRect(x, y, barWidth, barH, barWidth / 2);
+            bgCtx.fill();
+        });
+
+        // Foreground bars (played - revealed via clip-path)
+        bars.forEach((h, i) => {
+            const barH = h * rect.height;
+            const x = i * (barWidth + barGap);
+            const y = (rect.height - barH) / 2;
+            fgCtx.fillStyle = barColorFg;
+            fgCtx.beginPath();
+            fgCtx.roundRect(x, y, barWidth, barH, barWidth / 2);
+            fgCtx.fill();
+        });
+
+        // Start with foreground fully clipped (0% progress)
+        fgCanvas.style.clipPath = 'inset(0 100% 0 0)';
+
+        // Show total duration immediately if available from cache
+        const cachedDuration = waveformCache.get(audioUrl + '__duration');
+        if (cachedDuration) {
+            const timeId = `time-${waveformEl.dataset.playerId}`;
+            const timeEl = document.getElementById(timeId);
+            if (timeEl && !isNaN(cachedDuration) && cachedDuration > 0) {
+                const m = Math.floor(cachedDuration / 60);
+                const s = Math.floor(cachedDuration % 60).toString().padStart(2, '0');
+                timeEl.textContent = `0:${s}`;
+                timeEl.dataset.totalDuration = cachedDuration;
+            }
+        }
+
+    } catch (e) {
+        console.warn('Falha ao renderizar waveform:', e.message);
+    }
+}
+
+// Scrubbing
+let isScrubbing = false;
+
+function setupWaveformScrubbing(waveformEl, playerId) {
+    const getAudio = () => {
+        // If this player is currently active, use the global audio object
+        if (currentCustomPlayer && currentCustomPlayer.playerId === playerId && currentAudio) {
+            return currentAudio;
+        }
+        return null;
+    };
+
+    function seekTo(e) {
+        const rect = waveformEl.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+        const audio = getAudio();
+        if (audio && !isNaN(audio.duration)) {
+            audio.currentTime = ratio * audio.duration;
+        }
+        waveformEl.querySelector('canvas[id$="-fg"]')?.style.setProperty('clip-path', `inset(0 ${(1 - ratio) * 100}% 0 0)`);
+    }
+
+    function onPointerDown(e) {
+        e.preventDefault();
+        isScrubbing = true;
+        seekTo(e);
+    }
+    function onPointerMove(e) {
+        if (!isScrubbing) return;
+        e.preventDefault();
+        seekTo(e);
+    }
+    function onPointerUp() {
+        isScrubbing = false;
+    }
+
+    waveformEl.addEventListener('mousedown', onPointerDown);
+    waveformEl.addEventListener('touchstart', onPointerDown, { passive: false });
+    document.addEventListener('mousemove', onPointerMove);
+    document.addEventListener('touchmove', onPointerMove, { passive: false });
+    document.addEventListener('mouseup', onPointerUp);
+    document.addEventListener('touchend', onPointerUp);
+
+    waveformEl.style.cursor = 'pointer';
+}
+
+// Waveform observer: watches for audio elements being added and renders waveforms
+const waveformObserver = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+            if (node.nodeType !== 1) return;
+            const waveforms = node.classList?.contains('custom-ap-waveform') ? [node] : node.querySelectorAll('.custom-ap-waveform');
+            waveforms.forEach(wf => {
+                const audioSrc = wf.dataset.audioSrc;
+                const playerId = wf.dataset.playerId;
+                if (audioSrc && playerId) {
+                    renderWaveformFromAudioUrl(audioSrc, wf);
+                    setupWaveformScrubbing(wf, playerId);
+                }
+            });
+        });
+    });
+});
+waveformObserver.observe(messagesContainer, { childList: true, subtree: true });
+
+
 function playBotAudio(audioSrc, buttonElement, playerId) {
-    if (currentCustomPlayer && currentCustomPlayer.btn === buttonElement && currentAudio) {
+    const playerDiv = document.getElementById(playerId);
+    const timeSpan = document.getElementById(`time-${playerId}`);
+    const fgCanvas = playerDiv?.querySelector('canvas[id$="-fg"]');
+
+    // If this same player is already playing, toggle pause/play
+    if (currentCustomPlayer && currentCustomPlayer.playerId === playerId && currentAudio) {
         if (!currentAudio.paused) {
             currentAudio.pause();
             buttonElement.innerHTML = '<i class="fas fa-play"></i>';
-            currentCustomPlayer.playerDiv?.classList.remove('playing');
         } else {
             currentAudio.play();
             buttonElement.innerHTML = '<i class="fas fa-pause"></i>';
-            currentCustomPlayer.playerDiv?.classList.add('playing');
         }
         return;
     }
 
+    // Stop any other playing audio
     if (currentAudio) {
         currentAudio.pause();
         currentAudio.currentTime = 0;
     }
     if (currentCustomPlayer && currentCustomPlayer.btn) {
         currentCustomPlayer.btn.innerHTML = '<i class="fas fa-play"></i>';
-        currentCustomPlayer.playerDiv?.classList.remove('playing');
         clearInterval(currentCustomPlayer.interval);
     }
 
+    // Always create a fresh Audio object to avoid stale state
     currentAudio = new window.Audio(audioSrc);
-    const playerDiv = document.getElementById(playerId);
-    const timeSpan = document.getElementById(`time-${playerId}`) || playerDiv?.querySelector('.custom-ap-time');
-    
-    currentAudio.onplay = () => {
-        buttonElement.innerHTML = "<i class=\"fas fa-pause\"></i>";
-        if (playerDiv) playerDiv.classList.add('playing');
-        currentCustomPlayer = { 
-            btn: buttonElement, 
-            playerDiv: playerDiv, 
-            interval: setInterval(() => {
-                if (timeSpan && currentAudio) {
-                    const s = Math.floor(currentAudio.currentTime % 60).toString().padStart(2, '0');
-                    const m = Math.floor(currentAudio.currentTime / 60);
-                    timeSpan.textContent = `${m}:${s}`;
-                }
-            }, 1000) 
-        };
-    };
-    
-    currentAudio.onended = () => {
-        buttonElement.innerHTML = '<i class="fas fa-play"></i>';
-        if (playerDiv) playerDiv.classList.remove('playing');
-        if (currentCustomPlayer) { clearInterval(currentCustomPlayer.interval); currentCustomPlayer = null; }
-        currentAudio = null;
+    currentAudio.preload = 'auto';
+
+    const updateProgress = () => {
+        if (timeSpan && currentAudio && !isNaN(currentAudio.duration)) {
+            const s = Math.floor(currentAudio.currentTime % 60).toString().padStart(2, '0');
+            const m = Math.floor(currentAudio.currentTime / 60);
+            timeSpan.textContent = `${m}:${s}`;
+        }
+        if (fgCanvas && currentAudio && !isNaN(currentAudio.duration)) {
+            const ratio = currentAudio.currentTime / currentAudio.duration;
+            fgCanvas.style.clipPath = `inset(0 ${(1 - ratio) * 100}% 0 0)`;
+        }
     };
 
-    currentAudio.onerror = () => {
+    // Show duration when metadata loads
+    currentAudio.addEventListener('loadedmetadata', () => {
+        if (timeSpan && !isNaN(currentAudio.duration)) {
+            const mins = Math.floor(currentAudio.duration / 60);
+            const secs = Math.floor(currentAudio.duration % 60).toString().padStart(2, '0');
+            timeSpan.textContent = `${mins}:${secs}`;
+        }
+    });
+
+    currentAudio.addEventListener('playing', () => {
+        buttonElement.innerHTML = '<i class="fas fa-pause"></i>';
+        currentCustomPlayer = {
+            btn: buttonElement,
+            playerId: playerId,
+            interval: setInterval(updateProgress, 50)
+        };
+    });
+
+    currentAudio.addEventListener('ended', () => {
         buttonElement.innerHTML = '<i class="fas fa-play"></i>';
-        if (playerDiv) playerDiv.classList.remove('playing');
+        if (fgCanvas) fgCanvas.style.clipPath = 'inset(0 100% 0 0)';
+        if (currentCustomPlayer) { clearInterval(currentCustomPlayer.interval); currentCustomPlayer = null; }
+        currentAudio = null;
+    });
+
+    currentAudio.addEventListener('error', () => {
+        buttonElement.innerHTML = '<i class="fas fa-play"></i>';
         if (currentCustomPlayer) { clearInterval(currentCustomPlayer.interval); currentCustomPlayer = null; }
         currentAudio = null;
         showCustomAlert("Erro de reprodução", "Não foi possível reproduzir este áudio. Pode estar corrompido ou expirado.");
-    };
+    });
 
     currentAudio.play().catch(e => {
         buttonElement.innerHTML = '<i class="fas fa-play"></i>';
-        if (playerDiv) playerDiv.classList.remove('playing');
         if (currentCustomPlayer) { clearInterval(currentCustomPlayer.interval); currentCustomPlayer = null; }
         currentAudio = null;
     });
