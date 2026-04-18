@@ -1,23 +1,39 @@
 {
   "name": "Chat 2B",
   "short_name": "Chat 2B",
-  "start_url": ".",
+  "description": "Assistente de IA pessoal — código, texto, análise, tradução e mais.",
+  "start_url": "./index.html",
   "scope": ".",
-  "display": "standalone",
   "display": "standalone",
   "background_color": "#0b0d11",
   "theme_color": "#0b0d11",
   "orientation": "portrait-primary",
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "./icons/icon-192.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "icon-512.png",
+      "src": "./icons/icon-512.png",
       "type": "image/png",
       "sizes": "512x512"
+    },
+    {
+      "src": "./icons/icon-192-maskable.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./icons/icon-512-maskable.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
     }
   ]
 }

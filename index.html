@@ -1,124 +1,188 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
-  <meta http-equiv="Content-Security-Policy" 
-      content="default-src 'self'; 
-               script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; 
-               style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; 
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self';
+               script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net;
+               style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
                img-src 'self' data: blob:;
                media-src 'self' data: blob:;
                font-src 'self' https://cdnjs.cloudflare.com;
                connect-src 'self' *; ">
-               
-  <meta charset="UTF-8"/>
+
+  <meta charset="UTF-8" />
   <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
   <title>Chat 2B</title>
+  <link rel="icon" href="icons/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="local_assets/css/katex.min.css">
   <script defer src="local_assets/js/katex.min.js"></script>
   <script defer src="local_assets/js/auto-render.min.js"></script>
-  <link href="manifest.json" rel="manifest"/>
-  <link href="local_assets/css/all.min.css" rel="stylesheet"/>
-  <link href="local_assets/css/dracula.min.css" rel="stylesheet"/>
-  <link href="style.css" rel="stylesheet"/>
+  <link href="manifest.json" rel="manifest" />
+  <link href="local_assets/css/all.min.css" rel="stylesheet" />
+  <!-- dracula.min.css removido — syntax highlighting agora é feito via style.css -->
+  <link href="style.css" rel="stylesheet" />
   <link href="local_assets/css/cropper.min.css" rel="stylesheet">
   <style>
-      #app-settings-modal h2 {
-          color: white;
-      }
-      .top-bar { position: relative; }
-      .api-history-dropdown {
-          position: absolute;
-          top: 100%;
-          left: 0;
-          width: 100%;
-          background: var(--sidebar-bg);
-          border: 1px solid var(--border-color);
-          border-radius: 0 0 8px 8px;
-          box-shadow: 0 4px 12px var(--shadow-color);
-          z-index: 99999;
-          display: none;
-          max-height: 200px;
-          overflow-y: auto;
-      }
-      .history-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 8px 12px;
-          cursor: pointer;
-          transition: background 0.2s;
-          border-bottom: 1px solid var(--border-color);
-      }
-      .history-item:last-child { border-bottom: none; }
-      .history-item:hover { background: var(--hover-bg); }
-      .history-item span { flex: 1; font-size: 0.85rem; color: var(--text-color); }
-      .history-item button {
-          background: none;
-          border: none;
-          color: var(--text-light);
-          font-size: 1.2rem;
-          cursor: pointer;
-          padding: 0 5px;
-          line-height: 1;
-      }
-      .history-item button:hover { color: #ff4444; }
-      #api-key-setup-guide {
-          display: none; 
-          background: rgba(0,0,0,0.2); 
-          padding: 15px; 
-          border-radius: 8px; 
-          margin-bottom: 20px; 
-          text-align: left;
-      }
-      #api-key-setup-guide h4 {
-          margin-top: 0; 
-          color: white;
-      }
-      #api-key-setup-guide p {
-          font-size: 0.9em; 
-          margin-bottom: 15px;
-      }
-      #api-key-setup-guide .modal-actions {
-          justify-content: center; 
-          padding: 0;
-      }
-      #temperature-input {
-          -webkit-appearance: none;
-          width: 100px;
-          height: 6px;
-          background: black;
-          border-radius: 5px;
-          outline: none;
-      }
-      input[type=range]::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          appearance: none;
-          width: 14px;
-          height: 14px;
-          background: white;
-          border-radius: 50%;
-          cursor: pointer;
-          border: 2px solid black;
-      }
-      #temperature-value-display {
-          margin-left: 5px; 
-          color: var(--text-light); 
-          font-size: 0.9em;
-      }
-      #settings-feedback {
-          margin-top: 10px; 
-          color: #4CAF50; 
-          font-size: 0.9em; 
-          text-align: center;
-      }
-      .manual-model-container {
-          display: none;
-      }
-      .manual-model-container.active {
-          display: block;
-      }
+    #app-settings-modal h2 {
+      color: white;
+    }
+
+    .top-bar {
+      position: relative;
+    }
+
+    .api-history-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      width: 100%;
+      background: var(--sidebar-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 0 0 8px 8px;
+      box-shadow: 0 4px 12px var(--shadow-color);
+      z-index: 99999;
+      display: none;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .history-item:last-child {
+      border-bottom: none;
+    }
+
+    .history-item:hover {
+      background: var(--hover-bg);
+    }
+
+    .history-item span {
+      flex: 1;
+      font-size: 0.85rem;
+      color: var(--text-color);
+    }
+
+    .history-item button {
+      background: none;
+      border: none;
+      color: var(--text-light);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 0 5px;
+      line-height: 1;
+    }
+
+    .history-item button:hover {
+      color: #ff4444;
+    }
+
+    #api-key-setup-guide {
+      display: none;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    #api-key-setup-guide h4 {
+      margin-top: 0;
+      color: white;
+    }
+
+    #api-key-setup-guide p {
+      font-size: 0.9em;
+      margin-bottom: 15px;
+    }
+
+    #api-key-setup-guide .modal-actions {
+      justify-content: center;
+      padding: 0;
+    }
+
+    #temperature-input {
+      -webkit-appearance: none;
+      width: 100px;
+      height: 6px;
+      background: black;
+      border-radius: 5px;
+      outline: none;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      background: white;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid black;
+    }
+
+    #temperature-value-display {
+      margin-left: 5px;
+      color: var(--text-light);
+      font-size: 0.9em;
+    }
+
+    #settings-feedback {
+      margin-top: 10px;
+      color: #4CAF50;
+      font-size: 0.9em;
+      text-align: center;
+    }
+
+    .manual-model-container {
+      display: none;
+    }
+
+    .manual-model-container.active {
+      display: block;
+    }
+
+    /* Theme toggle button */
+    .theme-toggle-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-color);
+      cursor: pointer;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 20px;
+      transition: background-color 0.2s, transform 0.3s ease;
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    .theme-toggle-btn:hover {
+      background-color: var(--hover-bg);
+    }
+
+    .theme-toggle-btn:active {
+      transform: scale(0.9);
+    }
+
+    .theme-toggle-btn .fa-sun,
+    html[data-theme="light"] .theme-toggle-btn .fa-moon {
+      display: none;
+    }
+
+    html[data-theme="light"] .theme-toggle-btn .fa-sun {
+      display: inline-block;
+    }
   </style>
 </head>
+
 <body>
   <aside class="sidebar" id="sidebar">
     <button class="new-chat-btn">
@@ -138,52 +202,93 @@
       <button class="mobile-menu-btn top-bar-action-btn" id="mobile-menu-btn" title="Menu">
         <i class="fas fa-bars"></i>
       </button>
+
       <div class="api-source-wrapper" style="flex: 1; position: relative; display: flex; flex-direction: column;">
-          <input class="server-url-input" id="api-source-input" placeholder="Provedor (gemini, openai, groq...) ou URL" type="text" value="Gemini" style="width: 100%;"/>
-      </div>
-      
-      <div class="model-select-wrapper" style="flex: 1; margin: 0 10px; position: relative; display: flex; flex-direction: column; min-width: 0;">
-    <div class="custom-model-selector" id="custom-model-selector">
-        <div class="custom-model-display" id="custom-model-display">
-            <span id="custom-model-name">Carregando modelos...</span>
-            <i class="fas fa-chevron-down"></i>
-        </div>
-        <div class="custom-model-dropdown" id="custom-model-dropdown">
-            <div class="custom-model-search-container">
-                <i class="fas fa-search"></i>
-                <input type="text" id="custom-model-search" placeholder="Buscar modelo..." autocomplete="off">
-            </div>
-            <div class="custom-model-list" id="custom-model-list"></div>
-        </div>
-    </div>
-    <select class="model-selector" id="model-select" style="display: none !important;"></select>
-    
-          <div class="manual-model-container" id="manual-model-container" style="display: none; width: 100%;">
-              <input type="text" id="manual-model-input" placeholder="Nome exato do modelo..." style="width: 100%; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: white;">
-          </div>
+        <input class="server-url-input" id="api-source-input" placeholder="Provedor (gemini, openai, groq...) ou URL"
+          type="text" value="Gemini" style="width: 100%;" />
       </div>
 
-      <button class="top-bar-action-btn" id="install-pwa-btn" style="display: none;" title="Instalar Aplicativo">
-        <i class="fas fa-download"></i>
-      </button>
-      <button class="top-bar-action-btn" id="app-settings-btn" title="Configurações">
-        <i class="fas fa-cog"></i>
-      </button>
+      <div class="model-select-wrapper"
+        style="flex: 1; position: relative; display: flex; flex-direction: column; min-width: 0;">
+        <div class="custom-model-selector" id="custom-model-selector">
+          <div class="custom-model-display" id="custom-model-display">
+            <span id="custom-model-name">Carregando modelos...</span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="custom-model-dropdown" id="custom-model-dropdown">
+            <div class="custom-model-search-container">
+              <i class="fas fa-search"></i>
+              <input type="text" id="custom-model-search" placeholder="Buscar modelo..." autocomplete="off">
+            </div>
+            <div class="custom-model-list" id="custom-model-list"></div>
+          </div>
+        </div>
+        <select class="model-selector" id="model-select" style="display: none !important;"></select>
+
+        <div class="manual-model-container" id="manual-model-container" style="display: none; width: 100%;">
+          <input type="text" id="manual-model-input" placeholder="Nome exato do modelo..."
+            style="width: 100%; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: white;">
+        </div>
+      </div>
+
+      <div class="top-bar-actions" style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+        <button class="theme-toggle-btn top-bar-action-btn" id="theme-toggle-btn" title="Alternar tema">
+          <i class="fas fa-moon"></i>
+          <i class="fas fa-sun"></i>
+        </button>
+        <button class="top-bar-action-btn" id="install-pwa-btn" style="display: none;" title="Instalar Aplicativo">
+          <i class="fas fa-download"></i>
+        </button>
+        <button class="top-bar-action-btn" id="app-settings-btn" title="Configurações">
+          <i class="fas fa-cog"></i>
+        </button>
+      </div>
     </header>
     <div class="chat-container">
       <div class="scroll-container">
-        <div class="messages" id="messages">
-          <div class="welcome-screen">
-            <h2>Chat 2B</h2>
-            <p>Como posso ajudar você hoje?</p>
+        <div class="chat-content-wrapper">
+          <div class="messages" id="messages">
+            <div class="welcome-screen">
+              <div class="welcome-logo">
+                <div class="logo-mark">
+                  <span class="logo-2">2</span><span class="logo-b">B</span>
+                </div>
+              </div>
+              <h2>Chat 2B</h2>
+              <p>Ol&aacute;! Eu sou a 2B, sua assistente de IA. Me joga qualquer coisa: rascunho, erro, d&uacute;vida,
+                desafio. Eu pego, resolvo e te devolvo melhor. O que manda pra hoje?</p>
+              <div class="suggestion-grid">
+                <button class="suggestion-card"
+                  data-suggestion="Escreva um c&oacute;digo completo e bem comentado que fa&ccedil;a o seguinte:\n\n">
+                  <i class="fas fa-code"></i>
+                  <span>Escrever c&oacute;digo</span>
+                </button>
+                <button class="suggestion-card"
+                  data-suggestion="Analise os dados abaixo e me traga insights, padr&otilde;es e poss&iacute;veis conclus&otilde;es:\n\n">
+                  <i class="fas fa-chart-line"></i>
+                  <span>Analisar dados</span>
+                </button>
+                <button class="suggestion-card"
+                  data-suggestion="Traduza o texto a seguir para ingl&#x00EAs, mantendo o tom e o contexto original:\n\n">
+                  <i class="fas fa-language"></i>
+                  <span>Traduzir texto</span>
+                </button>
+                <button class="suggestion-card"
+                  data-suggestion="Me explique de forma simples e com exemplos pr&aacute;ticos o seguinte:\n\n">
+                  <i class="fas fa-lightbulb"></i>
+                  <span>Explicar algo</span>
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-        <div class="message bot-message" id="typing-animation">
-          <div class="typing-container">
-            <div class="typing-dots">
-              <div class="typing-dot"></div>
-              <div class="typing-dot"></div>
-              <div class="typing-dot"></div>
+          <div class="message bot-message message-typing" id="typing-animation">
+            <div class="avatar bot-avatar"><img src="icons/icon-192.png" alt="2B"></div>
+            <div class="message-content typing-container">
+              <div class="typing-dots">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -192,23 +297,21 @@
     <footer class="bottom-bar">
       <div class="input-area-container">
         <div id="image-preview-container">
-          <img alt="Image preview" id="image-preview" src="#" style="display: none;"/>
+          <img alt="Image preview" id="image-preview" src="#" style="display: none;" />
           <video autoplay="" id="video-preview" loop="" muted="" style="display: none;"></video>
-          <button id="remove-image-btn" title="Remover mídia">×</button>
+          <button id="remove-image-btn" title="Remover m&iacute;dia">&times;</button>
         </div>
         <form class="input-wrapper" id="chat-form">
           <div class="input-area">
-            <textarea id="message-input" placeholder="" rows="1"></textarea>
-          </div>
-          <div class="input-actions">
-            <input accept="image/*,video/*" id="image-file-input" style="display: none;" type="file"/>
-            <button class="attach-btn" id="attach-image-btn" title="Anexar mídia" type="button">
+            <textarea id="message-input" placeholder="Envie uma mensagem..." rows="1"></textarea>
+            <input accept="image/*,video/*" id="image-file-input" style="display: none;" type="file" />
+            <button class="attach-btn" id="attach-image-btn" title="Anexar m&iacute;dia" type="button">
               <i class="fas fa-paperclip"></i>
             </button>
-            <button class="send-btn" disabled="" id="send-button" type="submit">
-              <i class="fas fa-arrow-up"></i>
-            </button>
           </div>
+          <button class="send-btn" disabled="" id="send-button" type="submit">
+            <i class="fas fa-arrow-up"></i>
+          </button>
         </form>
       </div>
     </footer>
@@ -216,12 +319,14 @@
 
   <div class="modal-overlay" id="delete-confirm-overlay">
     <div class="modal" id="delete-confirm-modal">
-      <h2><i class="fas fa-exclamation-triangle"></i> Confirmar Exclusão</h2>
-      <p>Você tem certeza absoluta que quer excluir a conversa "<strong id="confirm-delete-chat-title"></strong>"?</p>
-      <p class="warning-text">Essa ação não pode ser desfeita!</p>
+      <h2><i class="fas fa-exclamation-triangle"></i> Confirmar Exclus&atilde;o</h2>
+      <p>Voc&ecirc; tem certeza absoluta que quer excluir a conversa &quot;<strong
+          id="confirm-delete-chat-title"></strong>&quot;?</p>
+      <p class="warning-text">Essa a&ccedil;&atilde;o n&atilde;o pode ser desfeita!</p>
       <div class="modal-actions">
         <button class="btn btn-secondary" id="cancel-delete-btn"><i class="fas fa-times"></i> Cancelar</button>
-        <button class="btn btn-danger" id="confirm-delete-btn"><i class="fas fa-trash-alt"></i> Excluir Permanentemente</button>
+        <button class="btn btn-danger" id="confirm-delete-btn"><i class="fas fa-trash-alt"></i> Excluir
+          Permanentemente</button>
       </div>
     </div>
   </div>
@@ -242,18 +347,20 @@
 
   <div class="modal-overlay" id="app-settings-modal-overlay">
     <div class="modal" id="app-settings-modal">
-      <h2><i class="fas fa-cogs"></i> Configurações de 2B</h2>
+      <h2><i class="fas fa-cogs"></i> Configura&ccedil;&otilde;es de 2B</h2>
       <div class="app-settings-content">
         <div id="api-key-setup-guide">
           <h4><i class="fas fa-magic"></i> Bem-vindo(a) ao Chat 2B!</h4>
-          <p>Para usar a inteligência artificial, configure suas chaves de API abaixo.</p>
+          <p>Para usar a intelig&ecirc;ncia artificial, configure suas chaves de API abaixo.</p>
           <div class="modal-actions">
-            <button class="btn btn-secondary" id="guide-have-key-btn"><i class="fas fa-key"></i> Já tenho chaves</button>
+            <button class="btn btn-secondary" id="guide-have-key-btn"><i class="fas fa-key"></i> J&aacute; tenho
+              chaves</button>
           </div>
         </div>
+
         <div class="setting-item">
           <label for="user-name-input">Seu Nome (Opcional)</label>
-          <input id="user-name-input" placeholder="Como a IA deve se referir a você?" type="text"/>
+          <input id="user-name-input" placeholder="Como a IA deve se referir a voc&ecirc;?" type="text" />
         </div>
         <div class="setting-item">
           <label for="system-prompt-input">Prompt do Sistema:</label>
@@ -261,10 +368,10 @@
         </div>
         <div class="setting-item setting-item-inline">
           <label for="temperature-input">Temperatura:</label>
-          <input id="temperature-input" max="2" min="0" step="0.1" type="range"/>
+          <input id="temperature-input" max="2" min="0" step="0.1" type="range" />
           <span id="temperature-value-display"></span>
         </div>
-        
+
         <div class="setting-item" id="dynamic-api-key-container">
           <label id="dynamic-api-key-label" for="global-api-key-input">Chave API:</label>
           <div class="api-key-input-container" style="margin-top: 5px;">
@@ -274,9 +381,10 @@
               <i class="fas fa-eye"></i>
             </button>
           </div>
-          <small style="color: #888; margin-top: 5px; display: block;">A chave salva aqui é atrelada à API selecionada na barra superior.</small>
+          <small style="color: #888; margin-top: 5px; display: block;">A chave salva aqui &eacute; atrelada ao provedor
+            selecionado acima.</small>
         </div>
-        
+
         <div id="settings-feedback"></div>
       </div>
       <div class="modal-actions">
@@ -305,4 +413,5 @@
   </script>
   <script src="local_assets/js/cropper.min.js"></script>
 </body>
+
 </html>
