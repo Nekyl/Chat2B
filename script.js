@@ -4345,6 +4345,8 @@ function applyThemePreference() {
     } else {
         document.documentElement.removeAttribute("data-theme");
     }
+
+    setTimeout(updateThemeColor, 0);
 }
 
 function toggleTheme() {
@@ -4352,11 +4354,49 @@ function toggleTheme() {
     const next = current === "dark" ? "light" : "dark";
     document.documentElement.setAttribute("data-theme", next);
     localStorage.setItem("2b_chat_theme", next);
+
+    setTimeout(updateThemeColor, 0);
 }
 
 function handleSystemThemeChange() {
     if (!localStorage.getItem("2b_chat_theme")) {
         applyThemePreference();
+    }
+
+    setTimeout(updateThemeColor, 0);
+}
+
+// Function to dynamically update theme color based on current CSS variables
+function updateThemeColor() {
+    const tempEl = document.createElement('div');
+    tempEl.style.visibility = 'hidden';
+    tempEl.style.position = 'absolute';
+    tempEl.style.pointerEvents = 'none';
+    tempEl.style.opacity = '0';
+    document.body.appendChild(tempEl);
+
+    tempEl.style.backgroundColor = 'var(--glass-bg)';
+
+    const computedBgColor = getComputedStyle(tempEl).backgroundColor;
+
+    let hexColor = computedBgColor;
+    if (computedBgColor.startsWith('rgb')) {
+        const rgbValues = computedBgColor.match(/\d+/g);
+        if (rgbValues && rgbValues.length >= 3) {
+            hexColor = "#" + ((1 << 24) + (parseInt(rgbValues[0]) << 16) + (parseInt(rgbValues[1]) << 8) + parseInt(rgbValues[2])).toString(16).slice(1);
+        }
+    }
+
+    document.body.removeChild(tempEl);
+
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeColorMeta) {
+        themeColorMeta.setAttribute('content', hexColor);
+    }
+
+    const manifestLink = document.querySelector('link[rel="manifest"]');
+    if (manifestLink) {
+
     }
 }
 
