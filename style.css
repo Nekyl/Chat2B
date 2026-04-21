@@ -1174,13 +1174,22 @@ blockquote p {
     font-style: italic;
 }
 
+.table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 1.5em 0;
+    border-radius: 0.5rem;
+    box-shadow: 0 0 0 1px var(--border-color);
+}
+
 .message-content table {
     width: 100%;
-    margin: 1.25em 0;
+    margin: 0;
     border-collapse: collapse;
     border-radius: 0.5rem;
     overflow: hidden;
-    box-shadow: 0 0 0 1px var(--border-color);
+    box-shadow: none;
     background-color: var(--surface);
 }
 
@@ -1190,7 +1199,7 @@ blockquote p {
     border-bottom: 1px solid var(--border-color);
     text-align: left;
     min-width: 3.75rem;
-    white-space: nowrap;
+    white-space: normal;
 }
 
 .message-content th {
@@ -4033,15 +4042,6 @@ video::-webkit-media-controls {
         width: 100%;
     }
 
-    .table-wrapper {
-        width: 100%;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        margin: 1.5em 0;
-        border-radius: 8px;
-        box-shadow: 0 0 0 1px var(--border-color);
-    }
-
     #typing-animation {
         padding: 12px;
     }
@@ -4236,7 +4236,7 @@ video::-webkit-media-controls {
     }
 }
 
-/* Tall phones (modern aspect ratio) */
+
 @media (min-height: 800px) and (max-width: 420px) {
     .welcome-screen {
         min-height: 75vh;
