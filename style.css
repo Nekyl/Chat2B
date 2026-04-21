@@ -3840,9 +3840,14 @@ video::-webkit-media-controls {
    ============================================ */
 @media (max-width: 768px) {
 
-    body,
     html {
         overflow: hidden !important;
+        background-color: var(--bg-gradient-start);
+    }
+
+    body {
+        overflow: hidden !important;
+        padding-bottom: env(safe-area-inset-bottom);
     }
 
     .sidebar {
@@ -3962,6 +3967,18 @@ video::-webkit-media-controls {
         box-sizing: border-box !important;
     }
 
+    .api-history-dropdown {
+        position: fixed !important;
+        width: 85vw !important;
+        max-width: 500px !important;
+        left: 50% !important;
+        top: 65px !important;
+        transform: translateX(-50%) !important;
+        max-height: 60vh !important;
+        z-index: 99999 !important;
+        box-sizing: border-box !important;
+    }
+
     .chat-content-wrapper {
         padding: 0 8px 10rem;
     }
@@ -4063,7 +4080,7 @@ video::-webkit-media-controls {
         right: 0;
         bottom: 0;
         z-index: 200;
-        background: transparent;
+        background: linear-gradient(160deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
         padding: 0;
         padding-bottom: calc(10px + env(safe-area-inset-bottom));
         pointer-events: none;

@@ -2578,6 +2578,13 @@ function hasVisionSupport(modelId) {
     return false;
 }
 
+function resolveVisionSupport(modelId, detailsMap) {
+    if (!modelId) return false;
+    const details = detailsMap?.get(modelId.toLowerCase());
+    if (details?.input_modalities?.includes("image")) return true;
+    return hasVisionSupport(modelId);
+}
+
 function isAudioModel(modelId) {
     if (!modelId) return false;
     const mid = modelId.toLowerCase();
@@ -4375,7 +4382,7 @@ function updateThemeColor() {
     tempEl.style.opacity = '0';
     document.body.appendChild(tempEl);
 
-    tempEl.style.backgroundColor = 'var(--glass-bg)';
+    tempEl.style.backgroundColor = 'var(--bg-gradient-start)';
 
     const computedBgColor = getComputedStyle(tempEl).backgroundColor;
 
@@ -4392,11 +4399,6 @@ function updateThemeColor() {
     const themeColorMeta = document.querySelector('meta[name="theme-color"]');
     if (themeColorMeta) {
         themeColorMeta.setAttribute('content', hexColor);
-    }
-
-    const manifestLink = document.querySelector('link[rel="manifest"]');
-    if (manifestLink) {
-
     }
 }
 
@@ -4429,24 +4431,58 @@ function formatContext(contextLength) {
     return String(contextLength);
 }
 
-async function fetchOpenRouterModelData() {
+async function fetchModelDataFromCatalog(url) {
     try {
-        const response = await fetch("https://openrouter.ai/api/v1/models");
+        const response = await fetch(url);
         if (!response.ok) return new Map();
         const data = await response.json();
         const map = new Map();
         (data.data || []).forEach(m => {
             const id = m.id;
-            map.set(id, {
+            if (!id) return;
+            const modalities = m.architecture?.input_modalities || m.architecture?.modality ? [m.architecture.modality] : null;
+            map.set(id.toLowerCase(), {
                 context_length: m.context_length || null,
-                pricing: m.pricing || null
+                pricing: m.pricing || null,
+                input_modalities: modalities
             });
         });
         return map;
     } catch (e) {
-        console.warn("Falha ao buscar dados do OpenRouter:", e.message);
+        console.warn(`Falha ao buscar catálogo ${url}:`, e.message);
         return new Map();
     }
+}
+
+async function fetchAllModelCatalogs() {
+    const catalogs = [
+        fetchModelDataFromCatalog("https://openrouter.ai/api/v1/models"),
+        fetchModelDataFromCatalog("https://router.huggingface.co/v1/models")
+    ];
+
+    const results = await Promise.allSettled(catalogs);
+    const merged = new Map();
+
+    for (const result of results) {
+        if (result.status === "fulfilled") {
+            for (const [id, info] of result.value) {
+                if (merged.has(id)) {
+                    // Merge: prefer non-null values from either source
+                    const existing = merged.get(id);
+                    if (!existing.input_modalities && info.input_modalities) {
+                        existing.input_modalities = info.input_modalities;
+                    }
+                    if (!existing.context_length && info.context_length) {
+                        existing.context_length = info.context_length;
+                    }
+                } else {
+                    merged.set(id, info);
+                }
+            }
+        }
+    }
+
+    return merged;
 }
 
 async function loadModels() {
@@ -4457,7 +4493,7 @@ async function loadModels() {
 
     if (!modelSelect || !customSelector || !customList) return;
 
-    const modelDetailsMap = await fetchOpenRouterModelData();
+    const modelDetailsMap = await fetchAllModelCatalogs();
 
     const apiConfig = await getApiConfig();
     const manualModelContainer = document.getElementById("manual-model-container");
@@ -4666,7 +4702,7 @@ async function loadModels() {
                 data.models.sort((a, b) => a.name.localeCompare(b.name)).forEach(model => {
                     const isSelected = savedModel === model.name;
                     if (isSelected) foundSaved = true;
-                    const hasVision = hasVisionSupport(model.name);
+                    const hasVision = resolveVisionSupport(model.name, modelDetailsMap);
                     const text = `${model.name} (${model.details?.quantization_level || "N/A"}) - ${formatBytes(model.size)}`;
                     const option = document.createElement("option");
                     option.value = model.name;
@@ -4714,7 +4750,7 @@ async function loadModels() {
                 sortedModels.forEach(model => {
                     const isSelected = savedModel === model.name;
                     if (isSelected) foundSaved = true;
-                    const hasVision = hasVisionSupport(model.name);
+                    const hasVision = resolveVisionSupport(model.name, modelDetailsMap);
                     const details = modelDetailsMap.get("google/" + model.name.replace('models/', ''));
                     const option = document.createElement("option");
                     option.value = model.name;
@@ -4773,7 +4809,7 @@ async function loadModels() {
                     if (id.includes('whisper') || id.includes('embed') || id.includes('tts') || id.includes('dall-e')) return;
                     const isSelected = savedModel === id;
                     if (isSelected) foundSaved = true;
-                    const hasVision = hasVisionSupport(id);
+                    const hasVision = resolveVisionSupport(id, modelDetailsMap);
                     const details = modelDetailsMap.get(id);
                     const option = document.createElement("option");
                     option.value = id;
