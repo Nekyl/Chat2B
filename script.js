@@ -5251,4 +5251,30 @@ function setupApiSourceHistory() {
             historyContainer.style.display = "none";
         }
     });
+
+    // Bounce animation when content is not scrollable
+    let touchStartY = 0;
+    historyContainer.addEventListener("touchstart", (e) => {
+        touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    historyContainer.addEventListener("touchmove", (e) => {
+        const canScroll = historyContainer.scrollHeight > historyContainer.clientHeight;
+        if (!canScroll) {
+            e.preventDefault();
+            const deltaY = e.touches[0].clientY - touchStartY;
+            historyContainer.style.transform = `translateY(${deltaY * 0.2}px)`;
+        }
+    }, { passive: false });
+
+    historyContainer.addEventListener("touchend", () => {
+        if (historyContainer.style.transform) {
+            historyContainer.style.transition = "transform 0.3s cubic-bezier(0.36, 0.66, 0.04, 1)";
+            historyContainer.style.transform = "translateY(0)";
+            setTimeout(() => {
+                historyContainer.style.transition = "";
+                historyContainer.style.transform = "";
+            }, 300);
+        }
+    });
 }
