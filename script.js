@@ -54,11 +54,13 @@ const apiKeyToggleBtn = document.getElementById("api-key-toggle-btn");
 const GROQ_API_BASE_URL = "https://api.groq.com/openai/v1";
 const OPENAI_API_BASE_URL = "https://api.openai.com/v1";
 const XAI_API_BASE_URL = "https://api.x.ai/v1";
+const NVIDIA_API_BASE_URL = "https://integrate.api.nvidia.com/v1";
 
 const GROQ_API_KEY_STORAGE = "2b_chat_groq_api_key";
 const OPENAI_API_KEY_STORAGE = "2b_chat_openai_api_key";
 const XAI_API_KEY_STORAGE = "2b_chat_xai_api_key";
 const GEMINI_API_KEY_STORAGE = "2b_chat_gemini_api_key";
+const NVIDIA_API_KEY_STORAGE = "2b_chat_nvidia_api_key";
 
 const modelSelector = document.querySelector('.custom-model-selector');
 const modelDropdown = document.querySelector('.custom-model-dropdown');
@@ -256,7 +258,7 @@ async function initializeApp() {
         setTimeout(() => handleMissingApiKey(false), 500);
     }
     onWebAppReady();
-    const defaults = ["Gemini", "Grok", "Groq"];
+    const defaults = ["Gemini", "Grok", "Groq", "NVIDIA"];
     let history = JSON.parse(localStorage.getItem("2b_chat_api_history") || "[]");
     defaults.forEach(def => {
         if (!history.some(item => item.url.toLowerCase() === def.toLowerCase())) {
@@ -1244,34 +1246,9 @@ async function getApiConfig() {
     if (sourceValue) {
         localStorage.setItem("api_source_preference", sourceValue);
         let isValid = false;
-        try {
-            if (["gemini", "openai", "groq", "grok", "xai"].includes(sourceLower)) {
-                isValid = true;
-            } else if (sourceLower.startsWith("http") || sourceLower.includes("localhost") || sourceLower.match(/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
-                let testBaseUrl = sourceValue.startsWith("http") ? sourceValue : `http://${sourceValue}`;
-                let testUrl;
-                if (sourceLower.endsWith("/v1") || sourceLower.includes("/v1/")) {
-                    testUrl = `${testBaseUrl.endsWith("/") ? testBaseUrl.slice(0, -1) : testBaseUrl}/models`;
-                } else {
-                    testUrl = `${testBaseUrl.endsWith("/") ? testBaseUrl.slice(0, -1) : testBaseUrl}/api/tags`;
-                }
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-                const apiKey = localStorage.getItem(`2b_chat_custom_key_${btoa(sourceValue)}`)?.trim() || null;
-                const headers = {
-                    "Content-Type": "application/json",
-                    ...(apiKey && { "Authorization": `Bearer ${apiKey}` })
-                };
-
-                const res = await fetch(testUrl, { method: "GET", signal: controller.signal, headers: headers });
-                clearTimeout(timeoutId);
-                if (res.status >= 200 && res.status < 500) {
-                    isValid = true;
-                }
-            }
-        } catch (e) {
-            console.warn(`A validação inicial para "${sourceValue}" falhou, mas a URL será salva. Erro: ${e.message}`);
+        if (["gemini", "openai", "groq", "grok", "xai", "nvidia"].includes(sourceLower)) {
+            isValid = true;
+        } else if (sourceLower.startsWith("http") || sourceLower.includes("localhost") || sourceLower.match(/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
             isValid = true;
         }
         if (isValid) {
@@ -1309,6 +1286,11 @@ async function getApiConfig() {
         const apiKey = getStoredKey();
         if (!apiKey) return { provider: "grok", error: "Chave de API não fornecida.", needsSetup: true };
         return { provider: "grok", url: XAI_API_BASE_URL, apiKey: apiKey };
+    } else if (sourceLower === "nvidia") {
+        currentApiProvider = "nvidia";
+        const apiKey = getStoredKey();
+        if (!apiKey) return { provider: "nvidia", error: "Chave de API não fornecida.", needsSetup: true };
+        return { provider: "nvidia", url: NVIDIA_API_BASE_URL, apiKey: apiKey };
     } else if (sourceLower.startsWith("http")) {
         if (sourceLower.endsWith("/v1") || sourceLower.includes("/v1/")) {
             currentApiProvider = "custom";
@@ -4699,44 +4681,46 @@ async function loadModels() {
     }
 
     if (apiConfig.provider === "llm") {
+        let models = [];
         try {
             const response = await fetch(`${apiConfig.url}/api/tags`);
             if (!response.ok) throw new Error();
             const data = await response.json();
-            modelSelect.innerHTML = "";
-            if (data.models?.length > 0) {
-                const savedModel = localStorage.getItem("llm_selected_model");
-                let foundSaved = false;
-                data.models.sort((a, b) => a.name.localeCompare(b.name)).forEach(model => {
-                    const isSelected = savedModel === model.name;
-                    if (isSelected) foundSaved = true;
-                    const hasVision = resolveVisionSupport(model.name, modelDetailsMap);
-                    const text = `${model.name} (${model.details?.quantization_level || "N/A"}) - ${formatBytes(model.size)}`;
-                    const option = document.createElement("option");
-                    option.value = model.name;
-                    option.textContent = text;
-                    if (isSelected) option.selected = true;
-                    modelSelect.appendChild(option);
-                    addCustomListItem(model.name, text, hasVision, isSelected, null, modelDetailsMap.get(model.name));
-                });
-                addManualOption(savedModel === "manual");
-                if (savedModel === "manual") {
-                    setManualMode(true);
-                } else {
-                    if (!foundSaved && data.models.length > 0) {
-                        modelSelect.options[0].selected = true;
-                        customList.querySelector('.custom-model-item:not(.model-favorite-btn)')?.classList.add('selected');
-                    }
-                    if (customName) customName.textContent = modelSelect.options[modelSelect.selectedIndex]?.textContent || "Selecione...";
-                    setManualMode(false);
-                }
-            } else {
-                addManualOption(true);
-                setManualMode(true, "Nenhum modelo llm encontrado...");
-            }
+            models = data.models || [];
         } catch (error) {
+            console.warn(`Falha ao listar modelos de ${apiConfig.url}:`, error.message);
+        }
+
+        modelSelect.innerHTML = "";
+        if (models.length > 0) {
+            const savedModel = localStorage.getItem("llm_selected_model");
+            let foundSaved = false;
+            models.sort((a, b) => a.name.localeCompare(b.name)).forEach(model => {
+                const isSelected = savedModel === model.name;
+                if (isSelected) foundSaved = true;
+                const hasVision = resolveVisionSupport(model.name, modelDetailsMap);
+                const text = `${model.name} (${model.details?.quantization_level || "N/A"}) - ${formatBytes(model.size)}`;
+                const option = document.createElement("option");
+                option.value = model.name;
+                option.textContent = text;
+                if (isSelected) option.selected = true;
+                modelSelect.appendChild(option);
+                addCustomListItem(model.name, text, hasVision, isSelected, null, modelDetailsMap.get(model.name));
+            });
+            addManualOption(savedModel === "manual");
+            if (savedModel === "manual") {
+                setManualMode(true);
+            } else {
+                if (!foundSaved && models.length > 0) {
+                    modelSelect.options[0].selected = true;
+                    customList.querySelector('.custom-model-item:not(.model-favorite-btn)')?.classList.add('selected');
+                }
+                if (customName) customName.textContent = modelSelect.options[modelSelect.selectedIndex]?.textContent || "Selecione...";
+                setManualMode(false);
+            }
+        } else {
             addManualOption(true);
-            setManualMode(true, "Falha ao conectar no llm...");
+            setManualMode(true, "Digite o nome do modelo manualmente...");
         }
     } else if (apiConfig.provider === "gemini") {
         if (!apiConfig.apiKey) {
@@ -4800,59 +4784,71 @@ async function loadModels() {
         }
     } else {
         const providerName = apiConfig.provider;
-        try {
-            const headers = {
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://2b-chat.com",
-                "X-Title": "Chat 2B"
-            };
-            if (apiConfig.apiKey) {
-                headers["Authorization"] = `Bearer ${apiConfig.apiKey}`;
-            }
+        const headers = {
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://2b-chat.com",
+            "X-Title": "Chat 2B"
+        };
+        if (apiConfig.apiKey) {
+            headers["Authorization"] = `Bearer ${apiConfig.apiKey}`;
+        }
 
+        let models = [];
+        try {
             const response = await fetch(`${apiConfig.url}/models`, {
                 method: "GET",
                 headers: headers
             });
             if (!response.ok) throw new Error(`Status: ${response.status}`);
             const jsonData = await response.json();
-            modelSelect.innerHTML = "";
-            const models = jsonData.data || jsonData.models || [];
-            if (models.length > 0) {
-                const savedModel = localStorage.getItem(`${providerName}_selected_model`);
-                let foundSaved = false;
-                models.sort((a, b) => (a.id || a.name).localeCompare(b.id || b.name)).forEach(model => {
-                    const id = model.id || model.name;
-                    if (id.includes('whisper') || id.includes('embed') || id.includes('tts') || id.includes('dall-e')) return;
-                    const isSelected = savedModel === id;
-                    if (isSelected) foundSaved = true;
-                    const hasVision = resolveVisionSupport(id, modelDetailsMap);
-                    const details = modelDetailsMap.get(id);
-                    const option = document.createElement("option");
-                    option.value = id;
-                    option.textContent = id;
-                    if (isSelected) option.selected = true;
-                    modelSelect.appendChild(option);
-                    addCustomListItem(id, id, hasVision, isSelected, null, details);
-                });
-                addManualOption(savedModel === "manual");
-                if (savedModel === "manual") {
-                    setManualMode(true);
-                } else {
-                    if (!foundSaved && modelSelect.options.length > 1) {
-                        modelSelect.options[0].selected = true;
-                        customList.querySelector('.custom-model-item:not(.model-favorite-btn)')?.classList.add('selected');
-                    }
-                    setManualMode(false);
-                }
-                if (customName) customName.textContent = modelSelect.options[modelSelect.selectedIndex]?.textContent || "Selecione...";
-            } else {
-                addManualOption(true);
-                setManualMode(true, "Nenhum modelo encontrado...");
-            }
+            models = jsonData.data || jsonData.models || [];
         } catch (error) {
+            console.warn(`Falha ao listar modelos de ${apiConfig.url}:`, error.message);
+        }
+
+        if (models.length === 0) {
+            try {
+                const catalog = await fetchAllModelCatalogs();
+                for (const [id, details] of catalog) {
+                    models.push({ id, ...details });
+                }
+            } catch (e) {
+                console.warn("Falha ao carregar catálogo externo:", e.message);
+            }
+        }
+
+        if (models.length > 0) {
+            modelSelect.innerHTML = "";
+            const savedModel = localStorage.getItem(`${providerName}_selected_model`);
+            let foundSaved = false;
+            models.sort((a, b) => (a.id || a.name).localeCompare(b.id || b.name)).forEach(model => {
+                const id = model.id || model.name;
+                if (id.includes('whisper') || id.includes('embed') || id.includes('tts') || id.includes('dall-e')) return;
+                const isSelected = savedModel === id;
+                if (isSelected) foundSaved = true;
+                const hasVision = resolveVisionSupport(id, modelDetailsMap);
+                const details = modelDetailsMap.get(id);
+                const option = document.createElement("option");
+                option.value = id;
+                option.textContent = id;
+                if (isSelected) option.selected = true;
+                modelSelect.appendChild(option);
+                addCustomListItem(id, id, hasVision, isSelected, null, details);
+            });
+            addManualOption(savedModel === "manual");
+            if (savedModel === "manual") {
+                setManualMode(true);
+            } else {
+                if (!foundSaved && modelSelect.options.length > 1) {
+                    modelSelect.options[0].selected = true;
+                    customList.querySelector('.custom-model-item:not(.model-favorite-btn)')?.classList.add('selected');
+                }
+                setManualMode(false);
+            }
+            if (customName) customName.textContent = modelSelect.options[modelSelect.selectedIndex]?.textContent || "Selecione...";
+        } else {
             addManualOption(true);
-            setManualMode(true, "Falha ao listar modelos...");
+            setManualMode(true, "Digite o nome do modelo manualmente...");
         }
     }
     if (customSelector.style.display !== "none" && modelSelect.value) {
@@ -5058,6 +5054,7 @@ function setupApiSourceHistory() {
             { label: "OpenAI", value: "OpenAI" },
             { label: "Groq", value: "Groq" },
             { label: "Grok", value: "Grok" },
+            { label: "NVIDIA", value: "NVIDIA" },
         ];
 
         const hasHistory = history.length > 0;
