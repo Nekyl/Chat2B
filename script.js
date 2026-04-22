@@ -231,7 +231,7 @@ async function initializeApp() {
     enableScrollbarDragging(document.querySelector('.custom-model-list'));
     enableScrollbarDragging(document.getElementById("system-prompt-input"));
 
-    const lastApi = localStorage.getItem("2b_chat_last_api_source");
+    const lastApi = localStorage.getItem("api_source_preference");
     if (lastApi && apiSourceInput) {
         apiSourceInput.value = lastApi;
     }
@@ -1242,7 +1242,7 @@ async function getApiConfig() {
     iniciarRotacaoPlaceholders();
 
     if (sourceValue) {
-        localStorage.setItem("2b_chat_last_api_source", sourceValue);
+        localStorage.setItem("api_source_preference", sourceValue);
         let isValid = false;
         try {
             if (["gemini", "openai", "groq", "grok", "xai"].includes(sourceLower)) {
