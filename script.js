@@ -1271,7 +1271,8 @@ async function getApiConfig() {
                 }
             }
         } catch (e) {
-            console.log(`API source "${sourceValue}" ainda não conectou: ${e.message}`);
+            console.warn(`A validação inicial para "${sourceValue}" falhou, mas a URL será salva. Erro: ${e.message}`);
+            isValid = true;
         }
         if (isValid) {
             let history = JSON.parse(localStorage.getItem("2b_chat_api_history") || "[]");
