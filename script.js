@@ -1257,7 +1257,14 @@ async function getApiConfig() {
                 }
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 3000);
-                const res = await fetch(testUrl, { method: "GET", signal: controller.signal });
+
+                const apiKey = localStorage.getItem(`2b_chat_custom_key_${btoa(sourceValue)}`)?.trim() || null;
+                const headers = {
+                    "Content-Type": "application/json",
+                    ...(apiKey && { "Authorization": `Bearer ${apiKey}` })
+                };
+
+                const res = await fetch(testUrl, { method: "GET", signal: controller.signal, headers: headers });
                 clearTimeout(timeoutId);
                 if (res.status >= 200 && res.status < 500) {
                     isValid = true;
@@ -4793,11 +4800,20 @@ async function loadModels() {
     } else {
         const providerName = apiConfig.provider;
         try {
+            const headers = {
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://2b-chat.com",
+                "X-Title": "Chat 2B"
+            };
+            if (apiConfig.apiKey) {
+                headers["Authorization"] = `Bearer ${apiConfig.apiKey}`;
+            }
+
             const response = await fetch(`${apiConfig.url}/models`, {
                 method: "GET",
-                headers: apiConfig.apiKey ? { "Authorization": `Bearer ${apiConfig.apiKey}` } : {}
+                headers: headers
             });
-            if (!response.ok) throw new Error();
+            if (!response.ok) throw new Error(`Status: ${response.status}`);
             const jsonData = await response.json();
             modelSelect.innerHTML = "";
             const models = jsonData.data || jsonData.models || [];
