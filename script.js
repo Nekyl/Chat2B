@@ -4812,6 +4812,64 @@ async function loadModels() {
             addManualOption(true);
             setManualMode(true, "Falha na API Gemini...");
         }
+    } else if (apiConfig.provider === "nvidia") {
+        const headers = {
+            "Content-Type": "application/json"
+        };
+        if (apiConfig.apiKey) {
+            headers["Authorization"] = `Bearer ${apiConfig.apiKey}`;
+        }
+
+        let models = [];
+        try {
+            const response = await fetch(`${apiConfig.url}/models`, {
+                method: "GET",
+                headers: headers
+            });
+            if (!response.ok) throw new Error(`Status: ${response.status}`);
+            const jsonData = await response.json();
+            const allModels = jsonData.data || jsonData.models || [];
+            // Filter to only NVIDIA's own models (id starts with "nvidia/")
+            models = allModels.filter(m => {
+                const id = (m.id || m.name || "").toLowerCase();
+                return id.startsWith("nvidia/");
+            });
+        } catch (error) {
+            console.warn(`Falha ao listar modelos NVIDIA:`, error.message);
+        }
+
+        if (models.length > 0) {
+            modelSelect.innerHTML = "";
+            const savedModel = localStorage.getItem(`${apiConfig.provider}_selected_model`);
+            let foundSaved = false;
+            models.sort((a, b) => (a.id || a.name).localeCompare(b.id || b.name)).forEach(model => {
+                const id = model.id || model.name;
+                const isSelected = savedModel === id;
+                if (isSelected) foundSaved = true;
+                const hasVision = resolveVisionSupport(id, modelDetailsMap);
+                const details = modelDetailsMap.get(id);
+                const option = document.createElement("option");
+                option.value = id;
+                option.textContent = id;
+                if (isSelected) option.selected = true;
+                modelSelect.appendChild(option);
+                addCustomListItem(id, id, hasVision, isSelected, null, details);
+            });
+            addManualOption(savedModel === "manual");
+            if (savedModel === "manual") {
+                setManualMode(true);
+            } else {
+                if (!foundSaved && modelSelect.options.length > 1) {
+                    modelSelect.options[0].selected = true;
+                    customList.querySelector('.custom-model-item:not(.model-favorite-btn)')?.classList.add('selected');
+                }
+                setManualMode(false);
+            }
+            if (customName) customName.textContent = modelSelect.options[modelSelect.selectedIndex]?.textContent || "Selecione...";
+        } else {
+            addManualOption(true);
+            setManualMode(true, "Nenhum modelo NVIDIA encontrado...");
+        }
     } else {
         const providerName = apiConfig.provider;
         const headers = {
