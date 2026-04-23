@@ -235,7 +235,21 @@ async function initializeApp() {
 
     const lastApi = localStorage.getItem("api_source_preference");
     if (lastApi && apiSourceInput) {
-        apiSourceInput.value = lastApi;
+        const knownUrls = {
+            "gemini": GEMINI_API_BASE_URL,
+            "openai": OPENAI_API_BASE_URL,
+            "groq": GROQ_API_BASE_URL,
+            "grok": XAI_API_BASE_URL,
+            "xai": XAI_API_BASE_URL,
+            "nvidia": NVIDIA_API_BASE_URL,
+        };
+        const lower = lastApi.toLowerCase();
+        if (Object.values(knownUrls).map(v => v.toLowerCase()).includes(lower)) {
+            const name = Object.entries(knownUrls).find(([k, v]) => v.toLowerCase() === lower);
+            apiSourceInput.value = name ? name[0].charAt(0).toUpperCase() + name[0].slice(1) : lastApi;
+        } else {
+            apiSourceInput.value = lastApi;
+        }
     }
     setupApiSourceHistory();
 
@@ -1243,20 +1257,34 @@ async function getApiConfig() {
     const sourceLower = sourceValue.toLowerCase();
     iniciarRotacaoPlaceholders();
 
-    if (sourceValue) {
-        localStorage.setItem("api_source_preference", sourceValue);
+    const KNOWN_URL_MAP = {
+        [GEMINI_API_BASE_URL.toLowerCase()]: "gemini",
+        [OPENAI_API_BASE_URL.toLowerCase()]: "openai",
+        [GROQ_API_BASE_URL.toLowerCase()]: "groq",
+        [XAI_API_BASE_URL.toLowerCase()]: "xai",
+        [NVIDIA_API_BASE_URL.toLowerCase()]: "nvidia",
+    };
+    const normalizedName = KNOWN_URL_MAP[sourceLower];
+    const normalizedSource = normalizedName || sourceValue;
+
+    if (normalizedSource) {
+        localStorage.setItem("api_source_preference", normalizedSource);
+        if (sourceValue !== normalizedSource) {
+            apiSourceInput.value = normalizedSource;
+        }
+        const normLower = normalizedSource.toLowerCase();
         let isValid = false;
-        if (["gemini", "openai", "groq", "grok", "xai", "nvidia"].includes(sourceLower)) {
+        if (["gemini", "openai", "groq", "grok", "xai", "nvidia"].includes(normLower)) {
             isValid = true;
-        } else if (sourceLower.startsWith("http") || sourceLower.includes("localhost") || sourceLower.match(/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
+        } else if (normLower.startsWith("http") || normLower.includes("localhost") || normLower.match(/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
             isValid = true;
         }
         if (isValid) {
             let history = JSON.parse(localStorage.getItem("2b_chat_api_history") || "[]");
-            let existingItem = history.find(item => item.url === sourceValue);
+            let existingItem = history.find(item => item.url === normalizedSource);
             let savedName = existingItem ? existingItem.name : "";
-            history = history.filter(item => item.url !== sourceValue);
-            history.unshift({ url: sourceValue, name: savedName, lastAccess: Date.now() });
+            history = history.filter(item => item.url !== normalizedSource);
+            history.unshift({ url: normalizedSource, name: savedName, lastAccess: Date.now() });
             localStorage.setItem("2b_chat_api_history", JSON.stringify(history.slice(0, 10)));
             if (typeof renderHistory === 'function') renderHistory();
         }
@@ -1266,44 +1294,46 @@ async function getApiConfig() {
 
     const getStoredKey = () => localStorage.getItem(getCurrentApiKeyStorageKey())?.trim() || null;
 
-    if (sourceLower === "gemini") {
+    const normLower = normalizedSource.toLowerCase();
+
+    if (normLower === "gemini") {
         currentApiProvider = "gemini";
         const apiKey = getStoredKey();
         if (!apiKey) return { provider: "gemini", error: "Chave de API não fornecida.", needsSetup: true };
         return { provider: "gemini", url: GEMINI_API_BASE_URL, apiKey: apiKey };
-    } else if (sourceLower === "openai") {
+    } else if (normLower === "openai") {
         currentApiProvider = "openai";
         const apiKey = getStoredKey();
         if (!apiKey) return { provider: "openai", error: "Chave de API não fornecida.", needsSetup: true };
         return { provider: "openai", url: OPENAI_API_BASE_URL, apiKey: apiKey };
-    } else if (sourceLower === "groq") {
+    } else if (normLower === "groq") {
         currentApiProvider = "groq";
         const apiKey = getStoredKey();
         if (!apiKey) return { provider: "groq", error: "Chave de API não fornecida.", needsSetup: true };
         return { provider: "groq", url: GROQ_API_BASE_URL, apiKey: apiKey };
-    } else if (sourceLower === "grok" || sourceLower === "xai") {
+    } else if (normLower === "grok" || normLower === "xai") {
         currentApiProvider = "grok";
         const apiKey = getStoredKey();
         if (!apiKey) return { provider: "grok", error: "Chave de API não fornecida.", needsSetup: true };
         return { provider: "grok", url: XAI_API_BASE_URL, apiKey: apiKey };
-    } else if (sourceLower === "nvidia") {
+    } else if (normLower === "nvidia") {
         currentApiProvider = "nvidia";
         const apiKey = getStoredKey();
         if (!apiKey) return { provider: "nvidia", error: "Chave de API não fornecida.", needsSetup: true };
         return { provider: "nvidia", url: NVIDIA_API_BASE_URL, apiKey: apiKey };
-    } else if (sourceLower.startsWith("http")) {
-        if (sourceLower.endsWith("/v1") || sourceLower.includes("/v1/")) {
+    } else if (normLower.startsWith("http")) {
+        if (normLower.endsWith("/v1") || normLower.includes("/v1/")) {
             currentApiProvider = "custom";
-            const url = sourceValue.endsWith("/") ? sourceValue.slice(0, -1) : sourceValue;
+            const url = normalizedSource.endsWith("/") ? normalizedSource.slice(0, -1) : normalizedSource;
             return { provider: "custom", url: url, apiKey: getStoredKey() };
         } else {
             currentApiProvider = "llm";
-            const url = sourceValue.endsWith("/") ? sourceValue.slice(0, -1) : sourceValue;
+            const url = normalizedSource.endsWith("/") ? normalizedSource.slice(0, -1) : normalizedSource;
             return { provider: "llm", url: url, apiKey: getStoredKey() };
         }
     } else {
         currentApiProvider = "llm";
-        const llmUrl = (sourceValue === "llm" || !sourceValue) ? DEFAULT_LLM_URL : sourceValue;
+        const llmUrl = (normalizedSource === "llm" || !normalizedSource) ? DEFAULT_LLM_URL : normalizedSource;
         return { provider: "llm", url: llmUrl.endsWith("/") ? llmUrl.slice(0, -1) : llmUrl, apiKey: getStoredKey() };
     }
 }
