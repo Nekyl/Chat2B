@@ -54,176 +54,11 @@ const apiKeyToggleBtn = document.getElementById("api-key-toggle-btn");
 const GROQ_API_BASE_URL = "https://api.groq.com/openai/v1";
 const OPENAI_API_BASE_URL = "https://api.openai.com/v1";
 const XAI_API_BASE_URL = "https://api.x.ai/v1";
-const NVIDIA_API_BASE_URL = "https://integrate.api.nvidia.com/v1";
-
-// Full NVIDIA Integrate models — hardcoded because API blocks browser requests via CORS
-// Source: https://integrate.api.nvidia.com/v1/models (fetched 2026-04-22)
-const NVIDIA_MODELS = [
-    // 01-ai
-    { id: "01-ai/yi-large", label: "Yi Large" },
-    // abacusai
-    { id: "abacusai/dracarys-llama-3.1-70b-instruct", label: "Dracarys Llama 3.1 70B" },
-    // adept
-    { id: "adept/fuyu-8b", label: "Fuyu 8B" },
-    // ai21labs
-    { id: "ai21labs/jamba-1.5-large-instruct", label: "Jamba 1.5 Large" },
-    // aisingapore
-    { id: "aisingapore/sea-lion-7b-instruct", label: "SEA-LION 7B" },
-    // bigcode
-    { id: "bigcode/starcoder2-15b", label: "StarCoder2 15B" },
-    // bytedance
-    { id: "bytedance/seed-oss-36b-instruct", label: "Seed OSS 36B" },
-    // databricks
-    { id: "databricks/dbrx-instruct", label: "DBRX Instruct" },
-    // deepseek
-    { id: "deepseek-ai/deepseek-coder-6.7b-instruct", label: "DeepSeek Coder 6.7B" },
-    { id: "deepseek-ai/deepseek-v3.1-terminus", label: "DeepSeek V3.1 Terminus" },
-    { id: "deepseek-ai/deepseek-v3.2", label: "DeepSeek V3.2" },
-    // google
-    { id: "google/codegemma-1.1-7b", label: "CodeGemma 1.1 7B" },
-    { id: "google/codegemma-7b", label: "CodeGemma 7B" },
-    { id: "google/deplot", label: "DePlot" },
-    { id: "google/gemma-2-2b-it", label: "Gemma 2 2B" },
-    { id: "google/gemma-2b", label: "Gemma 2B" },
-    { id: "google/gemma-3-12b-it", label: "Gemma 3 12B" },
-    { id: "google/gemma-3-27b-it", label: "Gemma 3 27B" },
-    { id: "google/gemma-3-4b-it", label: "Gemma 3 4B" },
-    { id: "google/gemma-3n-e2b-it", label: "Gemma 3n E2B" },
-    { id: "google/gemma-3n-e4b-it", label: "Gemma 3n E4B" },
-    { id: "google/gemma-4-31b-it", label: "Gemma 4 31B" },
-    { id: "google/recurrentgemma-2b", label: "RecurrentGemma 2B" },
-    // ibm
-    { id: "ibm/granite-3.0-3b-a800m-instruct", label: "Granite 3.0 3B" },
-    { id: "ibm/granite-3.0-8b-instruct", label: "Granite 3.0 8B" },
-    { id: "ibm/granite-34b-code-instruct", label: "Granite 34B Code" },
-    { id: "ibm/granite-8b-code-instruct", label: "Granite 8B Code" },
-    // meta
-    { id: "meta/codellama-70b", label: "CodeLlama 70B" },
-    { id: "meta/llama-3.1-405b-instruct", label: "Llama 3.1 405B" },
-    { id: "meta/llama-3.1-70b-instruct", label: "Llama 3.1 70B" },
-    { id: "meta/llama-3.1-8b-instruct", label: "Llama 3.1 8B" },
-    { id: "meta/llama-3.2-11b-vision-instruct", label: "Llama 3.2 11B Vision" },
-    { id: "meta/llama-3.2-1b-instruct", label: "Llama 3.2 1B" },
-    { id: "meta/llama-3.2-3b-instruct", label: "Llama 3.2 3B" },
-    { id: "meta/llama-3.2-90b-vision-instruct", label: "Llama 3.2 90B Vision" },
-    { id: "meta/llama-3.3-70b-instruct", label: "Llama 3.3 70B" },
-    { id: "meta/llama-4-maverick-17b-128e-instruct", label: "Llama 4 Maverick 17B" },
-    { id: "meta/llama-guard-4-12b", label: "Llama Guard 4 12B" },
-    { id: "meta/llama2-70b", label: "Llama 2 70B" },
-    // microsoft
-    { id: "microsoft/kosmos-2", label: "Kosmos 2" },
-    { id: "microsoft/phi-3-vision-128k-instruct", label: "Phi 3 Vision 128K" },
-    { id: "microsoft/phi-3.5-moe-instruct", label: "Phi 3.5 MoE" },
-    { id: "microsoft/phi-4-mini-instruct", label: "Phi 4 Mini" },
-    { id: "microsoft/phi-4-multimodal-instruct", label: "Phi 4 Multimodal" },
-    // minimax
-    { id: "minimaxai/minimax-m2.5", label: "MiniMax M2.5" },
-    { id: "minimaxai/minimax-m2.7", label: "MiniMax M2.7" },
-    // mistralai
-    { id: "mistralai/codestral-22b-instruct-v0.1", label: "Codestral 22B" },
-    { id: "mistralai/devstral-2-123b-instruct-2512", label: "Devstral 2 123B" },
-    { id: "mistralai/magistral-small-2506", label: "Magistral Small" },
-    { id: "mistralai/ministral-14b-instruct-2512", label: "Ministral 14B" },
-    { id: "mistralai/mistral-7b-instruct-v0.3", label: "Mistral 7B v0.3" },
-    { id: "mistralai/mistral-large", label: "Mistral Large" },
-    { id: "mistralai/mistral-large-2-instruct", label: "Mistral Large 2" },
-    { id: "mistralai/mistral-large-3-675b-instruct-2512", label: "Mistral Large 3 675B" },
-    { id: "mistralai/mistral-medium-3-instruct", label: "Mistral Medium 3" },
-    { id: "mistralai/mistral-nemotron", label: "Mistral Nemotron" },
-    { id: "mistralai/mistral-small-4-119b-2603", label: "Mistral Small 4 119B" },
-    { id: "mistralai/mixtral-8x22b-instruct-v0.1", label: "Mixtral 8x22B" },
-    { id: "mistralai/mixtral-8x22b-v0.1", label: "Mixtral 8x22B Base" },
-    { id: "mistralai/mixtral-8x7b-instruct-v0.1", label: "Mixtral 8x7B" },
-    // moonshotai
-    { id: "moonshotai/kimi-k2-instruct", label: "Kimi K2" },
-    { id: "moonshotai/kimi-k2-instruct-0905", label: "Kimi K2 0905" },
-    { id: "moonshotai/kimi-k2-thinking", label: "Kimi K2 Thinking" },
-    { id: "moonshotai/kimi-k2.5", label: "Kimi K2.5" },
-    // nv-mistralai
-    { id: "nv-mistralai/mistral-nemo-12b-instruct", label: "Mistral Nemo 12B" },
-    // nvidia
-    { id: "nvidia/ai-synthetic-video-detector", label: "AI Synthetic Video Detector" },
-    { id: "nvidia/cosmos-reason2-8b", label: "Cosmos Reason2 8B" },
-    { id: "nvidia/embed-qa-4", label: "Embed QA 4" },
-    { id: "nvidia/gliner-pii", label: "GLiNER PII" },
-    { id: "nvidia/ising-calibration-1-35b-a3b", label: "Ising Calibration 1.35B" },
-    { id: "nvidia/llama-3.1-nemoguard-8b-content-safety", label: "Llama 3.1 Nemoguard Content Safety" },
-    { id: "nvidia/llama-3.1-nemoguard-8b-topic-control", label: "Llama 3.1 Nemoguard Topic Control" },
-    { id: "nvidia/llama-3.1-nemotron-51b-instruct", label: "Llama 3.1 Nemotron 51B" },
-    { id: "nvidia/llama-3.1-nemotron-70b-instruct", label: "Llama 3.1 Nemotron 70B" },
-    { id: "nvidia/llama-3.1-nemotron-nano-8b-v1", label: "Llama 3.1 Nemotron Nano 8B" },
-    { id: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1", label: "Llama 3.1 Nemotron Nano VL 8B" },
-    { id: "nvidia/llama-3.1-nemotron-safety-guard-8b-v3", label: "Llama 3.1 Nemotron Safety Guard 8B" },
-    { id: "nvidia/llama-3.1-nemotron-ultra-253b-v1", label: "Llama 3.1 Nemotron Ultra 253B" },
-    { id: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1", label: "Llama 3.2 Nemoretriever 1B VLM Embed" },
-    { id: "nvidia/llama-3.2-nemoretriever-300m-embed-v1", label: "Llama 3.2 Nemoretriever 300M Embed" },
-    { id: "nvidia/llama-3.2-nv-embedqa-1b-v1", label: "Llama 3.2 Embed QA 1B v1" },
-    { id: "nvidia/llama-3.2-nv-embedqa-1b-v2", label: "Llama 3.2 Embed QA 1B v2" },
-    { id: "nvidia/llama-3.3-nemotron-super-49b-v1", label: "Llama 3.3 Nemotron Super 49B" },
-    { id: "nvidia/llama-3.3-nemotron-super-49b-v1.5", label: "Llama 3.3 Nemotron Super 49B v1.5" },
-    { id: "nvidia/llama-nemotron-embed-1b-v2", label: "Llama Nemotron Embed 1B v2" },
-    { id: "nvidia/llama-nemotron-embed-vl-1b-v2", label: "Llama Nemotron Embed VL 1B v2" },
-    { id: "nvidia/llama3-chatqa-1.5-70b", label: "Llama3 ChatQA 1.5 70B" },
-    { id: "nvidia/mistral-nemo-minitron-8b-8k-instruct", label: "Mistral Nemo Minitron 8B 8K" },
-    { id: "nvidia/nemoretriever-parse", label: "Nemoretriever Parse" },
-    { id: "nvidia/nemotron-3-content-safety", label: "Nemotron 3 Content Safety" },
-    { id: "nvidia/nemotron-3-nano-30b-a3b", label: "Nemotron 3 Nano 30B" },
-    { id: "nvidia/nemotron-3-super-120b-a12b", label: "Nemotron 3 Super 120B" },
-    { id: "nvidia/nemotron-4-340b-instruct", label: "Nemotron 4 340B" },
-    { id: "nvidia/nemotron-4-340b-reward", label: "Nemotron 4 340B Reward" },
-    { id: "nvidia/nemotron-content-safety-reasoning-4b", label: "Nemotron Content Safety Reasoning 4B" },
-    { id: "nvidia/nemotron-mini-4b-instruct", label: "Nemotron Mini 4B" },
-    { id: "nvidia/nemotron-nano-12b-v2-vl", label: "Nemotron Nano 12B v2 VL" },
-    { id: "nvidia/nemotron-nano-3-30b-a3b", label: "Nemotron Nano 3 30B" },
-    { id: "nvidia/nemotron-parse", label: "Nemotron Parse" },
-    { id: "nvidia/neva-22b", label: "Neva 22B" },
-    { id: "nvidia/nv-embed-v1", label: "NV Embed v1" },
-    { id: "nvidia/nv-embedcode-7b-v1", label: "NV EmbedCode 7B" },
-    { id: "nvidia/nv-embedqa-e5-v5", label: "NV Embed QA E5 v5" },
-    { id: "nvidia/nv-embedqa-mistral-7b-v2", label: "NV Embed QA Mistral 7B v2" },
-    { id: "nvidia/nvclip", label: "NVClip" },
-    { id: "nvidia/nvidia-nemotron-nano-9b-v2", label: "Nemotron Nano 9B v2" },
-    { id: "nvidia/riva-translate-4b-instruct", label: "Riva Translate 4B" },
-    { id: "nvidia/riva-translate-4b-instruct-v1.1", label: "Riva Translate 4B v1.1" },
-    { id: "nvidia/vila", label: "VILA" },
-    // openai
-    { id: "openai/gpt-oss-120b", label: "GPT-OSS 120B" },
-    { id: "openai/gpt-oss-20b", label: "GPT-OSS 20B" },
-    // qwen
-    { id: "qwen/qwen2.5-coder-32b-instruct", label: "Qwen 2.5 Coder 32B" },
-    { id: "qwen/qwen3-coder-480b-a35b-instruct", label: "Qwen3 Coder 480B" },
-    { id: "qwen/qwen3-next-80b-a3b-instruct", label: "Qwen3 Next 80B Instruct" },
-    { id: "qwen/qwen3-next-80b-a3b-thinking", label: "Qwen3 Next 80B Thinking" },
-    { id: "qwen/qwen3.5-122b-a10b", label: "Qwen3.5 122B" },
-    { id: "qwen/qwen3.5-397b-a17b", label: "Qwen3.5 397B" },
-    // sarvamai
-    { id: "sarvamai/sarvam-m", label: "Sarvam M" },
-    // snowflake
-    { id: "snowflake/arctic-embed-l", label: "Arctic Embed L" },
-    // stepfun
-    { id: "stepfun-ai/step-3.5-flash", label: "Step 3.5 Flash" },
-    // stockmark
-    { id: "stockmark/stockmark-2-100b-instruct", label: "StockMark 2 100B" },
-    // upstage
-    { id: "upstage/solar-10.7b-instruct", label: "Solar 10.7B" },
-    // writer
-    { id: "writer/palmyra-creative-122b", label: "Palmyra Creative 122B" },
-    { id: "writer/palmyra-fin-70b-32k", label: "Palmyra Fin 70B 32K" },
-    { id: "writer/palmyra-med-70b", label: "Palmyra Med 70B" },
-    { id: "writer/palmyra-med-70b-32k", label: "Palmyra Med 70B 32K" },
-    // z-ai
-    { id: "z-ai/glm-5.1", label: "GLM 5.1" },
-    { id: "z-ai/glm4.7", label: "GLM4.7" },
-    { id: "z-ai/glm5", label: "GLM5" },
-    // zyphra
-    { id: "zyphra/zamba2-7b-instruct", label: "Zamba2 7B" },
-];
 
 const GROQ_API_KEY_STORAGE = "2b_chat_groq_api_key";
 const OPENAI_API_KEY_STORAGE = "2b_chat_openai_api_key";
 const XAI_API_KEY_STORAGE = "2b_chat_xai_api_key";
 const GEMINI_API_KEY_STORAGE = "2b_chat_gemini_api_key";
-const NVIDIA_API_KEY_STORAGE = "2b_chat_nvidia_api_key";
 
 const modelSelector = document.querySelector('.custom-model-selector');
 const modelDropdown = document.querySelector('.custom-model-dropdown');
@@ -396,23 +231,9 @@ async function initializeApp() {
     enableScrollbarDragging(document.querySelector('.custom-model-list'));
     enableScrollbarDragging(document.getElementById("system-prompt-input"));
 
-    const lastApi = localStorage.getItem("api_source_preference");
+    const lastApi = localStorage.getItem("2b_chat_last_api_source");
     if (lastApi && apiSourceInput) {
-        const knownUrls = {
-            "gemini": GEMINI_API_BASE_URL,
-            "openai": OPENAI_API_BASE_URL,
-            "groq": GROQ_API_BASE_URL,
-            "grok": XAI_API_BASE_URL,
-            "xai": XAI_API_BASE_URL,
-            "nvidia": NVIDIA_API_BASE_URL,
-        };
-        const lower = lastApi.toLowerCase();
-        if (Object.values(knownUrls).map(v => v.toLowerCase()).includes(lower)) {
-            const name = Object.entries(knownUrls).find(([k, v]) => v.toLowerCase() === lower);
-            apiSourceInput.value = name ? name[0].charAt(0).toUpperCase() + name[0].slice(1) : lastApi;
-        } else {
-            apiSourceInput.value = lastApi;
-        }
+        apiSourceInput.value = lastApi;
     }
     setupApiSourceHistory();
 
@@ -435,7 +256,7 @@ async function initializeApp() {
         setTimeout(() => handleMissingApiKey(false), 500);
     }
     onWebAppReady();
-    const defaults = ["Gemini", "Grok", "Groq", "NVIDIA"];
+    const defaults = ["Gemini", "Grok", "Groq"];
     let history = JSON.parse(localStorage.getItem("2b_chat_api_history") || "[]");
     defaults.forEach(def => {
         if (!history.some(item => item.url.toLowerCase() === def.toLowerCase())) {
@@ -1420,34 +1241,37 @@ async function getApiConfig() {
     const sourceLower = sourceValue.toLowerCase();
     iniciarRotacaoPlaceholders();
 
-    const KNOWN_URL_MAP = {
-        [GEMINI_API_BASE_URL.toLowerCase()]: "gemini",
-        [OPENAI_API_BASE_URL.toLowerCase()]: "openai",
-        [GROQ_API_BASE_URL.toLowerCase()]: "groq",
-        [XAI_API_BASE_URL.toLowerCase()]: "xai",
-        [NVIDIA_API_BASE_URL.toLowerCase()]: "nvidia",
-    };
-    const normalizedName = KNOWN_URL_MAP[sourceLower];
-    const normalizedSource = normalizedName || sourceValue;
-
-    if (normalizedSource) {
-        localStorage.setItem("api_source_preference", normalizedSource);
-        if (sourceValue !== normalizedSource) {
-            apiSourceInput.value = normalizedSource;
-        }
-        const normLower = normalizedSource.toLowerCase();
+    if (sourceValue) {
+        localStorage.setItem("2b_chat_last_api_source", sourceValue);
         let isValid = false;
-        if (["gemini", "openai", "groq", "grok", "xai", "nvidia"].includes(normLower)) {
-            isValid = true;
-        } else if (normLower.startsWith("http") || normLower.includes("localhost") || normLower.match(/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
-            isValid = true;
+        try {
+            if (["gemini", "openai", "groq", "grok", "xai"].includes(sourceLower)) {
+                isValid = true;
+            } else if (sourceLower.startsWith("http") || sourceLower.includes("localhost") || sourceLower.match(/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
+                let testBaseUrl = sourceValue.startsWith("http") ? sourceValue : `http://${sourceValue}`;
+                let testUrl;
+                if (sourceLower.endsWith("/v1") || sourceLower.includes("/v1/")) {
+                    testUrl = `${testBaseUrl.endsWith("/") ? testBaseUrl.slice(0, -1) : testBaseUrl}/models`;
+                } else {
+                    testUrl = `${testBaseUrl.endsWith("/") ? testBaseUrl.slice(0, -1) : testBaseUrl}/api/tags`;
+                }
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000);
+                const res = await fetch(testUrl, { method: "GET", signal: controller.signal });
+                clearTimeout(timeoutId);
+                if (res.status >= 200 && res.status < 500) {
+                    isValid = true;
+                }
+            }
+        } catch (e) {
+            console.log(`API source "${sourceValue}" ainda não conectou: ${e.message}`);
         }
         if (isValid) {
             let history = JSON.parse(localStorage.getItem("2b_chat_api_history") || "[]");
-            let existingItem = history.find(item => item.url === normalizedSource);
+            let existingItem = history.find(item => item.url === sourceValue);
             let savedName = existingItem ? existingItem.name : "";
-            history = history.filter(item => item.url !== normalizedSource);
-            history.unshift({ url: normalizedSource, name: savedName, lastAccess: Date.now() });
+            history = history.filter(item => item.url !== sourceValue);
+            history.unshift({ url: sourceValue, name: savedName, lastAccess: Date.now() });
             localStorage.setItem("2b_chat_api_history", JSON.stringify(history.slice(0, 10)));
             if (typeof renderHistory === 'function') renderHistory();
         }
@@ -1457,46 +1281,39 @@ async function getApiConfig() {
 
     const getStoredKey = () => localStorage.getItem(getCurrentApiKeyStorageKey())?.trim() || null;
 
-    const normLower = normalizedSource.toLowerCase();
-
-    if (normLower === "gemini") {
+    if (sourceLower === "gemini") {
         currentApiProvider = "gemini";
         const apiKey = getStoredKey();
         if (!apiKey) return { provider: "gemini", error: "Chave de API não fornecida.", needsSetup: true };
         return { provider: "gemini", url: GEMINI_API_BASE_URL, apiKey: apiKey };
-    } else if (normLower === "openai") {
+    } else if (sourceLower === "openai") {
         currentApiProvider = "openai";
         const apiKey = getStoredKey();
         if (!apiKey) return { provider: "openai", error: "Chave de API não fornecida.", needsSetup: true };
         return { provider: "openai", url: OPENAI_API_BASE_URL, apiKey: apiKey };
-    } else if (normLower === "groq") {
+    } else if (sourceLower === "groq") {
         currentApiProvider = "groq";
         const apiKey = getStoredKey();
         if (!apiKey) return { provider: "groq", error: "Chave de API não fornecida.", needsSetup: true };
         return { provider: "groq", url: GROQ_API_BASE_URL, apiKey: apiKey };
-    } else if (normLower === "grok" || normLower === "xai") {
+    } else if (sourceLower === "grok" || sourceLower === "xai") {
         currentApiProvider = "grok";
         const apiKey = getStoredKey();
         if (!apiKey) return { provider: "grok", error: "Chave de API não fornecida.", needsSetup: true };
         return { provider: "grok", url: XAI_API_BASE_URL, apiKey: apiKey };
-    } else if (normLower === "nvidia") {
-        currentApiProvider = "nvidia";
-        const apiKey = getStoredKey();
-        if (!apiKey) return { provider: "nvidia", error: "Chave de API não fornecida.", needsSetup: true };
-        return { provider: "nvidia", url: NVIDIA_API_BASE_URL, apiKey: apiKey };
-    } else if (normLower.startsWith("http")) {
-        if (normLower.endsWith("/v1") || normLower.includes("/v1/")) {
+    } else if (sourceLower.startsWith("http")) {
+        if (sourceLower.endsWith("/v1") || sourceLower.includes("/v1/")) {
             currentApiProvider = "custom";
-            const url = normalizedSource.endsWith("/") ? normalizedSource.slice(0, -1) : normalizedSource;
+            const url = sourceValue.endsWith("/") ? sourceValue.slice(0, -1) : sourceValue;
             return { provider: "custom", url: url, apiKey: getStoredKey() };
         } else {
             currentApiProvider = "llm";
-            const url = normalizedSource.endsWith("/") ? normalizedSource.slice(0, -1) : normalizedSource;
+            const url = sourceValue.endsWith("/") ? sourceValue.slice(0, -1) : sourceValue;
             return { provider: "llm", url: url, apiKey: getStoredKey() };
         }
     } else {
         currentApiProvider = "llm";
-        const llmUrl = (normalizedSource === "llm" || !normalizedSource) ? DEFAULT_LLM_URL : normalizedSource;
+        const llmUrl = (sourceValue === "llm" || !sourceValue) ? DEFAULT_LLM_URL : sourceValue;
         return { provider: "llm", url: llmUrl.endsWith("/") ? llmUrl.slice(0, -1) : llmUrl, apiKey: getStoredKey() };
     }
 }
@@ -4874,46 +4691,44 @@ async function loadModels() {
     }
 
     if (apiConfig.provider === "llm") {
-        let models = [];
         try {
             const response = await fetch(`${apiConfig.url}/api/tags`);
             if (!response.ok) throw new Error();
             const data = await response.json();
-            models = data.models || [];
-        } catch (error) {
-            console.warn(`Falha ao listar modelos de ${apiConfig.url}:`, error.message);
-        }
-
-        modelSelect.innerHTML = "";
-        if (models.length > 0) {
-            const savedModel = localStorage.getItem("llm_selected_model");
-            let foundSaved = false;
-            models.sort((a, b) => a.name.localeCompare(b.name)).forEach(model => {
-                const isSelected = savedModel === model.name;
-                if (isSelected) foundSaved = true;
-                const hasVision = resolveVisionSupport(model.name, modelDetailsMap);
-                const text = `${model.name} (${model.details?.quantization_level || "N/A"}) - ${formatBytes(model.size)}`;
-                const option = document.createElement("option");
-                option.value = model.name;
-                option.textContent = text;
-                if (isSelected) option.selected = true;
-                modelSelect.appendChild(option);
-                addCustomListItem(model.name, text, hasVision, isSelected, null, modelDetailsMap.get(model.name));
-            });
-            addManualOption(savedModel === "manual");
-            if (savedModel === "manual") {
-                setManualMode(true);
-            } else {
-                if (!foundSaved && models.length > 0) {
-                    modelSelect.options[0].selected = true;
-                    customList.querySelector('.custom-model-item:not(.model-favorite-btn)')?.classList.add('selected');
+            modelSelect.innerHTML = "";
+            if (data.models?.length > 0) {
+                const savedModel = localStorage.getItem("llm_selected_model");
+                let foundSaved = false;
+                data.models.sort((a, b) => a.name.localeCompare(b.name)).forEach(model => {
+                    const isSelected = savedModel === model.name;
+                    if (isSelected) foundSaved = true;
+                    const hasVision = resolveVisionSupport(model.name, modelDetailsMap);
+                    const text = `${model.name} (${model.details?.quantization_level || "N/A"}) - ${formatBytes(model.size)}`;
+                    const option = document.createElement("option");
+                    option.value = model.name;
+                    option.textContent = text;
+                    if (isSelected) option.selected = true;
+                    modelSelect.appendChild(option);
+                    addCustomListItem(model.name, text, hasVision, isSelected, null, modelDetailsMap.get(model.name));
+                });
+                addManualOption(savedModel === "manual");
+                if (savedModel === "manual") {
+                    setManualMode(true);
+                } else {
+                    if (!foundSaved && data.models.length > 0) {
+                        modelSelect.options[0].selected = true;
+                        customList.querySelector('.custom-model-item:not(.model-favorite-btn)')?.classList.add('selected');
+                    }
+                    if (customName) customName.textContent = modelSelect.options[modelSelect.selectedIndex]?.textContent || "Selecione...";
+                    setManualMode(false);
                 }
-                if (customName) customName.textContent = modelSelect.options[modelSelect.selectedIndex]?.textContent || "Selecione...";
-                setManualMode(false);
+            } else {
+                addManualOption(true);
+                setManualMode(true, "Nenhum modelo llm encontrado...");
             }
-        } else {
+        } catch (error) {
             addManualOption(true);
-            setManualMode(true, "Digite o nome do modelo manualmente...");
+            setManualMode(true, "Falha ao conectar no llm...");
         }
     } else if (apiConfig.provider === "gemini") {
         if (!apiConfig.apiKey) {
@@ -4975,109 +4790,52 @@ async function loadModels() {
             addManualOption(true);
             setManualMode(true, "Falha na API Gemini...");
         }
-    } else if (apiConfig.provider === "nvidia") {
-        // Use hardcoded models list — NVIDIA API blocks browser requests via CORS
-        const models = NVIDIA_MODELS;
-
-        if (models.length > 0) {
-            modelSelect.innerHTML = "";
-            const savedModel = localStorage.getItem(`${apiConfig.provider}_selected_model`);
-            let foundSaved = false;
-            models.sort((a, b) => a.id.localeCompare(b.id)).forEach(model => {
-                const id = model.id;
-                const isSelected = savedModel === id;
-                if (isSelected) foundSaved = true;
-                const hasVision = resolveVisionSupport(id, modelDetailsMap);
-                const details = modelDetailsMap.get(id);
-                const option = document.createElement("option");
-                option.value = id;
-                option.textContent = id;
-                if (isSelected) option.selected = true;
-                modelSelect.appendChild(option);
-                addCustomListItem(id, id, hasVision, isSelected, null, details);
-            });
-            addManualOption(savedModel === "manual");
-            if (savedModel === "manual") {
-                setManualMode(true);
-            } else {
-                if (!foundSaved && modelSelect.options.length > 1) {
-                    modelSelect.options[0].selected = true;
-                    customList.querySelector('.custom-model-item:not(.model-favorite-btn)')?.classList.add('selected');
-                }
-                setManualMode(false);
-            }
-            if (customName) customName.textContent = modelSelect.options[modelSelect.selectedIndex]?.textContent || "Selecione...";
-        } else {
-            addManualOption(true);
-            setManualMode(true, "Nenhum modelo NVIDIA encontrado...");
-        }
     } else {
         const providerName = apiConfig.provider;
-        const headers = {
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://2b-chat.com",
-            "X-Title": "Chat 2B"
-        };
-        if (apiConfig.apiKey) {
-            headers["Authorization"] = `Bearer ${apiConfig.apiKey}`;
-        }
-
-        let models = [];
         try {
             const response = await fetch(`${apiConfig.url}/models`, {
                 method: "GET",
-                headers: headers
+                headers: apiConfig.apiKey ? { "Authorization": `Bearer ${apiConfig.apiKey}` } : {}
             });
-            if (!response.ok) throw new Error(`Status: ${response.status}`);
+            if (!response.ok) throw new Error();
             const jsonData = await response.json();
-            models = jsonData.data || jsonData.models || [];
-        } catch (error) {
-            console.warn(`Falha ao listar modelos de ${apiConfig.url}:`, error.message);
-        }
-
-        if (models.length === 0) {
-            try {
-                const catalog = await fetchAllModelCatalogs();
-                for (const [id, details] of catalog) {
-                    models.push({ id, ...details });
-                }
-            } catch (e) {
-                console.warn("Falha ao carregar catálogo externo:", e.message);
-            }
-        }
-
-        if (models.length > 0) {
             modelSelect.innerHTML = "";
-            const savedModel = localStorage.getItem(`${providerName}_selected_model`);
-            let foundSaved = false;
-            models.sort((a, b) => (a.id || a.name).localeCompare(b.id || b.name)).forEach(model => {
-                const id = model.id || model.name;
-                if (id.includes('whisper') || id.includes('embed') || id.includes('tts') || id.includes('dall-e')) return;
-                const isSelected = savedModel === id;
-                if (isSelected) foundSaved = true;
-                const hasVision = resolveVisionSupport(id, modelDetailsMap);
-                const details = modelDetailsMap.get(id);
-                const option = document.createElement("option");
-                option.value = id;
-                option.textContent = id;
-                if (isSelected) option.selected = true;
-                modelSelect.appendChild(option);
-                addCustomListItem(id, id, hasVision, isSelected, null, details);
-            });
-            addManualOption(savedModel === "manual");
-            if (savedModel === "manual") {
-                setManualMode(true);
-            } else {
-                if (!foundSaved && modelSelect.options.length > 1) {
-                    modelSelect.options[0].selected = true;
-                    customList.querySelector('.custom-model-item:not(.model-favorite-btn)')?.classList.add('selected');
+            const models = jsonData.data || jsonData.models || [];
+            if (models.length > 0) {
+                const savedModel = localStorage.getItem(`${providerName}_selected_model`);
+                let foundSaved = false;
+                models.sort((a, b) => (a.id || a.name).localeCompare(b.id || b.name)).forEach(model => {
+                    const id = model.id || model.name;
+                    if (id.includes('whisper') || id.includes('embed') || id.includes('tts') || id.includes('dall-e')) return;
+                    const isSelected = savedModel === id;
+                    if (isSelected) foundSaved = true;
+                    const hasVision = resolveVisionSupport(id, modelDetailsMap);
+                    const details = modelDetailsMap.get(id);
+                    const option = document.createElement("option");
+                    option.value = id;
+                    option.textContent = id;
+                    if (isSelected) option.selected = true;
+                    modelSelect.appendChild(option);
+                    addCustomListItem(id, id, hasVision, isSelected, null, details);
+                });
+                addManualOption(savedModel === "manual");
+                if (savedModel === "manual") {
+                    setManualMode(true);
+                } else {
+                    if (!foundSaved && modelSelect.options.length > 1) {
+                        modelSelect.options[0].selected = true;
+                        customList.querySelector('.custom-model-item:not(.model-favorite-btn)')?.classList.add('selected');
+                    }
+                    setManualMode(false);
                 }
-                setManualMode(false);
+                if (customName) customName.textContent = modelSelect.options[modelSelect.selectedIndex]?.textContent || "Selecione...";
+            } else {
+                addManualOption(true);
+                setManualMode(true, "Nenhum modelo encontrado...");
             }
-            if (customName) customName.textContent = modelSelect.options[modelSelect.selectedIndex]?.textContent || "Selecione...";
-        } else {
+        } catch (error) {
             addManualOption(true);
-            setManualMode(true, "Digite o nome do modelo manualmente...");
+            setManualMode(true, "Falha ao listar modelos...");
         }
     }
     if (customSelector.style.display !== "none" && modelSelect.value) {
@@ -5283,7 +5041,6 @@ function setupApiSourceHistory() {
             { label: "OpenAI", value: "OpenAI" },
             { label: "Groq", value: "Groq" },
             { label: "Grok", value: "Grok" },
-            { label: "NVIDIA", value: "NVIDIA" },
         ];
 
         const hasHistory = history.length > 0;
