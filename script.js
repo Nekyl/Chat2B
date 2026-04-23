@@ -56,6 +56,55 @@ const OPENAI_API_BASE_URL = "https://api.openai.com/v1";
 const XAI_API_BASE_URL = "https://api.x.ai/v1";
 const NVIDIA_API_BASE_URL = "https://integrate.api.nvidia.com/v1";
 
+// NVIDIA models list — hardcoded because the API blocks browser requests via CORS
+// Source: https://integrate.api.nvidia.com/v1/models
+const NVIDIA_MODELS = [
+    // Chat / Instruct models (free tier available)
+    { id: "nvidia/llama-3.1-nemotron-51b-instruct", label: "Llama 3.1 Nemotron 51B Instruct" },
+    { id: "nvidia/llama-3.1-nemotron-70b-instruct", label: "Llama 3.1 Nemotron 70B Instruct" },
+    { id: "nvidia/llama-3.1-nemotron-ultra-253b-v1", label: "Llama 3.1 Nemotron Ultra 253B" },
+    { id: "nvidia/llama-3.3-nemotron-super-49b-v1", label: "Llama 3.3 Nemotron Super 49B" },
+    { id: "nvidia/llama-3.3-nemotron-super-49b-v1.5", label: "Llama 3.3 Nemotron Super 49B v1.5" },
+    { id: "nvidia/nemotron-3-nano-30b-a3b", label: "Nemotron 3 Nano 30B" },
+    { id: "nvidia/nemotron-3-super-120b-a12b", label: "Nemotron 3 Super 120B" },
+    { id: "nvidia/nemotron-4-340b-instruct", label: "Nemotron 4 340B Instruct" },
+    { id: "nvidia/nemotron-mini-4b-instruct", label: "Nemotron Mini 4B Instruct" },
+    { id: "nvidia/nvidia-nemotron-nano-9b-v2", label: "Nemotron Nano 9B v2" },
+    { id: "nvidia/mistral-nemo-minitron-8b-8k-instruct", label: "Mistral Nemo Minitron 8B 8K" },
+    // Multimodal / Vision
+    { id: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1", label: "Llama 3.1 Nemotron Nano VL 8B" },
+    { id: "nvidia/nemotron-nano-12b-v2-vl", label: "Nemotron Nano 12B v2 VL" },
+    { id: "nvidia/neva-22b", label: "Neva 22B" },
+    { id: "nvidia/vila", label: "VILA" },
+    // Embedding / Retrieval
+    { id: "nvidia/embed-qa-4", label: "Embed QA 4" },
+    { id: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1", label: "Llama 3.2 Nemoretriever 1B VLM Embed" },
+    { id: "nvidia/llama-3.2-nemoretriever-300m-embed-v1", label: "Llama 3.2 Nemoretriever 300M Embed" },
+    { id: "nvidia/llama-3.2-nv-embedqa-1b-v1", label: "Llama 3.2 Embed QA 1B v1" },
+    { id: "nvidia/llama-3.2-nv-embedqa-1b-v2", label: "Llama 3.2 Embed QA 1B v2" },
+    { id: "nvidia/llama-nemotron-embed-1b-v2", label: "Llama Nemotron Embed 1B v2" },
+    { id: "nvidia/llama-nemotron-embed-vl-1b-v2", label: "Llama Nemotron Embed VL 1B v2" },
+    { id: "nvidia/nv-embed-v1", label: "NV Embed v1" },
+    { id: "nvidia/nv-embedqa-e5-v5", label: "NV Embed QA E5 v5" },
+    { id: "nvidia/nv-embedqa-mistral-7b-v2", label: "NV Embed QA Mistral 7B v2" },
+    { id: "nvidia/nvclip", label: "NVClip" },
+    // Safety / Guardrails
+    { id: "nvidia/llama-3.1-nemoguard-8b-content-safety", label: "Llama 3.1 Nemoguard 8B Content Safety" },
+    { id: "nvidia/llama-3.1-nemoguard-8b-topic-control", label: "Llama 3.1 Nemoguard 8B Topic Control" },
+    { id: "nvidia/llama-3.1-nemotron-safety-guard-8b-v3", label: "Llama 3.1 Nemotron Safety Guard 8B v3" },
+    { id: "nvidia/nemotron-3-content-safety", label: "Nemotron 3 Content Safety" },
+    { id: "nvidia/nemotron-content-safety-reasoning-4b", label: "Nemotron Content Safety Reasoning 4B" },
+    // Translation
+    { id: "nvidia/riva-translate-4b-instruct", label: "Riva Translate 4B" },
+    { id: "nvidia/riva-translate-4b-instruct-v1.1", label: "Riva Translate 4B v1.1" },
+    // Other / Specialized
+    { id: "nvidia/cosmos-reason2-8b", label: "Cosmos Reason2 8B" },
+    { id: "nvidia/nemoretriever-parse", label: "Nemoretriever Parse" },
+    { id: "nvidia/nemotron-parse", label: "Nemotron Parse" },
+    { id: "nvidia/nv-embedcode-7b-v1", label: "NV EmbedCode 7B v1" },
+    { id: "nvidia/llama-3.1-nemotron-nano-8b-v1", label: "Llama 3.1 Nemotron Nano 8B v1" },
+];
+
 const GROQ_API_KEY_STORAGE = "2b_chat_groq_api_key";
 const OPENAI_API_KEY_STORAGE = "2b_chat_openai_api_key";
 const XAI_API_KEY_STORAGE = "2b_chat_xai_api_key";
@@ -4813,47 +4862,25 @@ async function loadModels() {
             setManualMode(true, "Falha na API Gemini...");
         }
     } else if (apiConfig.provider === "nvidia") {
-        const headers = {
-            "Content-Type": "application/json"
-        };
-        if (apiConfig.apiKey) {
-            headers["Authorization"] = `Bearer ${apiConfig.apiKey}`;
-        }
-
-        let models = [];
-        try {
-            const response = await fetch(`${apiConfig.url}/models`, {
-                method: "GET",
-                headers: headers
-            });
-            if (!response.ok) throw new Error(`Status: ${response.status}`);
-            const jsonData = await response.json();
-            const allModels = jsonData.data || jsonData.models || [];
-            // Filter to only NVIDIA's own models (id starts with "nvidia/")
-            models = allModels.filter(m => {
-                const id = (m.id || m.name || "").toLowerCase();
-                return id.startsWith("nvidia/");
-            });
-        } catch (error) {
-            console.warn(`Falha ao listar modelos NVIDIA:`, error.message);
-        }
+        // Use hardcoded models list — NVIDIA API blocks browser requests via CORS
+        const models = NVIDIA_MODELS;
 
         if (models.length > 0) {
             modelSelect.innerHTML = "";
             const savedModel = localStorage.getItem(`${apiConfig.provider}_selected_model`);
             let foundSaved = false;
-            models.sort((a, b) => (a.id || a.name).localeCompare(b.id || b.name)).forEach(model => {
-                const id = model.id || model.name;
+            models.sort((a, b) => a.id.localeCompare(b.id)).forEach(model => {
+                const id = model.id;
                 const isSelected = savedModel === id;
                 if (isSelected) foundSaved = true;
                 const hasVision = resolveVisionSupport(id, modelDetailsMap);
                 const details = modelDetailsMap.get(id);
                 const option = document.createElement("option");
                 option.value = id;
-                option.textContent = id;
+                option.textContent = model.label || id;
                 if (isSelected) option.selected = true;
                 modelSelect.appendChild(option);
-                addCustomListItem(id, id, hasVision, isSelected, null, details);
+                addCustomListItem(id, model.label || id, hasVision, isSelected, null, details);
             });
             addManualOption(savedModel === "manual");
             if (savedModel === "manual") {
