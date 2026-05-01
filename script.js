@@ -54,6 +54,7 @@ const apiKeyToggleBtn = document.getElementById("api-key-toggle-btn");
 const GROQ_API_BASE_URL = "https://api.groq.com/openai/v1";
 const OPENAI_API_BASE_URL = "https://api.openai.com/v1";
 const XAI_API_BASE_URL = "https://api.x.ai/v1";
+const NVIDIA_API_BASE_URL = "https://chat2b-nvidia-proxy.nekyll.workers.dev/v1";
 
 const GROQ_API_KEY_STORAGE = "2b_chat_groq_api_key";
 const OPENAI_API_KEY_STORAGE = "2b_chat_openai_api_key";
@@ -1245,7 +1246,7 @@ async function getApiConfig() {
         localStorage.setItem("2b_chat_last_api_source", sourceValue);
         let isValid = false;
         try {
-            if (["gemini", "openai", "groq", "grok", "xai"].includes(sourceLower)) {
+            if (["gemini", "openai", "groq", "grok", "xai", "nvidia"].includes(sourceLower)) {
                 isValid = true;
             } else if (sourceLower.startsWith("http") || sourceLower.includes("localhost") || sourceLower.match(/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
                 let testBaseUrl = sourceValue.startsWith("http") ? sourceValue : `http://${sourceValue}`;
@@ -1301,6 +1302,11 @@ async function getApiConfig() {
         const apiKey = getStoredKey();
         if (!apiKey) return { provider: "grok", error: "Chave de API não fornecida.", needsSetup: true };
         return { provider: "grok", url: XAI_API_BASE_URL, apiKey: apiKey };
+    } else if (sourceLower === "nvidia") {
+        currentApiProvider = "nvidia";
+        const apiKey = getStoredKey();
+        if (!apiKey) return { provider: "nvidia", error: "Chave de API não fornecida.", needsSetup: true };
+        return { provider: "nvidia", url: NVIDIA_API_BASE_URL, apiKey: apiKey };
     } else if (sourceLower.startsWith("http")) {
         if (sourceLower.endsWith("/v1") || sourceLower.includes("/v1/")) {
             currentApiProvider = "custom";
@@ -4965,6 +4971,7 @@ function setupApiSourceHistory() {
             { label: "OpenAI", value: "OpenAI" },
             { label: "Groq", value: "Groq" },
             { label: "Grok", value: "Grok" },
+            { label: "NVIDIA", value: "NVIDIA" },
         ];
 
         const hasHistory = history.length > 0;
