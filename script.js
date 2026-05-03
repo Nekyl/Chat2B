@@ -1465,10 +1465,7 @@ async function sendMessage() {
     }
 
     try {
-        const supportsAttachments = hasVisionSupport(selectedModel) ||
-            ['gemini', 'openai', 'custom', 'alibaba'].includes(apiConfig.provider);
-
-        if (hasFiles && supportsAttachments && currentMediaAttachments.length > 0) {
+        if (hasFiles && currentMediaAttachments.length > 0) {
             let totalBytes = 0;
             let uploadedBytes = 0;
 
@@ -2610,13 +2607,8 @@ function updateVisionIndicator() {
     const hasVision = hasVisionSupport(selectedModel || "");
 
     if (attachImageBtn) {
-        if (hasVision) {
-            attachImageBtn.classList.remove('no-vision');
-            attachImageBtn.title = "Anexar mídia";
-        } else {
-            attachImageBtn.classList.add('no-vision');
-            attachImageBtn.title = "Este modelo pode não suportar visão";
-        }
+        attachImageBtn.classList.remove('no-vision');
+        attachImageBtn.title = "Anexar mídia";
     }
 }
 
