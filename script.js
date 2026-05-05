@@ -4837,7 +4837,7 @@ window.handlePastedImageFromNative = function (mimeType, base64String) {
 };
 
 function handlePaste(event) {
-    const _supportsImages = ['gemini', 'openai', 'groq', 'grok', 'custom'].includes(currentApiProvider);
+    const _supportsImages = ['gemini', 'openai', 'groq', 'grok', 'custom', 'llm', 'nvidia'].includes(currentApiProvider.toLowerCase());
     if (!_supportsImages) return;
     const items = (event.clipboardData || event.originalEvent.clipboardData)?.items;
     if (!items) return;
