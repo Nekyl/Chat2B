@@ -2355,8 +2355,11 @@ function displayChatHistory(chatId, shouldScrollToBottom = true) {
     }
 
     if (chat.recentMessages.length > 0) {
-        chat.recentMessages.forEach(msg => {
-            addMessage(msg.content, msg.role === "user", false, msg.timestamp);
+        chat.recentMessages.forEach((msg, i) => {
+            const msgEl = addMessage(msg.content, msg.role === "user", false, msg.timestamp);
+            if (msgEl) {
+                msgEl.style.animationDelay = `${Math.min(i * 0.04, 0.6)}s`;
+            }
         });
 
         const savedScroll = sessionStorage.getItem(`scroll_pos_${chatId}`);
@@ -3624,7 +3627,8 @@ async function renderWaveformFromAudioUrl(audioUrl, waveformEl) {
 
             // Store duration so we can display it on the time element immediately
             waveformCache.set(audioUrl + '__duration', audioBuffer.duration);
-            const numBars = 40;
+            const isMobileScreen = window.innerWidth < 500;
+            const numBars = isMobileScreen ? 22 : 40;
             const samplesPerBar = Math.floor(rawData.length / numBars);
             bars = [];
             for (let i = 0; i < numBars; i++) {
@@ -3660,17 +3664,30 @@ async function renderWaveformFromAudioUrl(audioUrl, waveformEl) {
         bgCtx.scale(dpr, dpr);
         fgCtx.scale(dpr, dpr);
 
-        const isNarrowScreen = rect.width < 320;
-        const numBars = isNarrowScreen ? 28 : 40;
-        const barGap = 2;
-        const barWidth = (rect.width - barGap * (bars.length - 1)) / bars.length;
+        // Resample bars for mobile to get thicker bars
+        let drawBars = bars;
+        const minBarWidth = rect.width < 500 ? 5 : 3;
+        let barGap = 2;
+        let barWidth = (rect.width - barGap * (bars.length - 1)) / bars.length;
+
+        if (barWidth < minBarWidth) {
+            const maxBars = Math.floor((rect.width + barGap) / (minBarWidth + barGap));
+            const groupSize = Math.ceil(bars.length / maxBars);
+            drawBars = [];
+            for (let i = 0; i < bars.length; i += groupSize) {
+                const group = bars.slice(i, i + groupSize);
+                drawBars.push(group.reduce((a, b) => Math.max(a, b), 0));
+            }
+            barGap = rect.width < 500 ? 4 : 2;
+            barWidth = (rect.width - barGap * (drawBars.length - 1)) / drawBars.length;
+        }
 
         const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches || document.documentElement.getAttribute('data-theme') === 'dark';
-        const barColorBg = isDark ? 'rgba(205, 214, 244, 0.25)' : 'rgba(205, 214, 244, 0.25)';
-        const barColorFg = isDark ? '#cdd6f4' : '#cdd6f4';
+        const barColorBg = isDark ? 'rgba(212, 167, 70, 0.2)' : 'rgba(212, 167, 70, 0.2)';
+        const barColorFg = isDark ? '#D4A746' : '#D4A746';
 
         // Background bars (unplayed - dimmer)
-        bars.forEach((h, i) => {
+        drawBars.forEach((h, i) => {
             const barH = h * rect.height;
             const x = i * (barWidth + barGap);
             const y = (rect.height - barH) / 2;
@@ -3681,7 +3698,7 @@ async function renderWaveformFromAudioUrl(audioUrl, waveformEl) {
         });
 
         // Foreground bars (played - revealed via clip-path)
-        bars.forEach((h, i) => {
+        drawBars.forEach((h, i) => {
             const barH = h * rect.height;
             const x = i * (barWidth + barGap);
             const y = (rect.height - barH) / 2;
@@ -3939,44 +3956,16 @@ function showCustomAlert(title, message) {
     const style = document.createElement('style');
     style.innerHTML = `
         .custom-alert-modal {
-            background: #ffffff;
-            color: #1e1e1e;
-            border: 1px solid #ddd;
+            background: var(--surface-raised);
+            color: var(--text-color);
+            border: 1px solid var(--glass-border);
         }
         .custom-alert-subtitle {
-            color: #555;
+            color: var(--text-secondary);
         }
         .custom-alert-btn {
-            background-color: #1e1e1e;
-            color: #ffffff;
-        }
-        
-        @media (prefers-color-scheme: dark) {
-            .custom-alert-modal {
-                background: #1e1e1e;
-                color: #e0e0e0;
-                border: 1px solid #333;
-            }
-            .custom-alert-subtitle {
-                color: #e0e0e0;
-            }
-            .custom-alert-btn {
-                background-color: #f0f0f0;
-                color: #1e1e1e;
-            }
-        }
-        
-        body.dark-mode .custom-alert-modal, body.dark .custom-alert-modal {
-            background: #1e1e1e;
-            color: #e0e0e0;
-            border: 1px solid #333;
-        }
-        body.dark-mode .custom-alert-subtitle, body.dark .custom-alert-subtitle {
-            color: #e0e0e0;
-        }
-        body.dark-mode .custom-alert-btn, body.dark .custom-alert-btn {
-            background-color: #f0f0f0;
-            color: #1e1e1e;
+            background: var(--gold-gradient);
+            color: #0A0A0A;
         }
     `;
     overlay.appendChild(style);

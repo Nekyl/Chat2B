@@ -1,39 +1,179 @@
-﻿<html>
+<html lang="pt-BR">
 <head>
+	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-	<title>Error</title>
+	<title>2B Chat — Erro</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap">
+	<style>
+		* { margin: 0; padding: 0; box-sizing: border-box; }
+
+		body {
+			min-height: 100vh;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			background: #0A0A0A;
+			font-family: 'Outfit', sans-serif;
+			color: #e0d5c0;
+			overflow: hidden;
+			position: relative;
+		}
+
+		/* Grain overlay */
+		body::before {
+			content: '';
+			position: fixed;
+			inset: 0;
+			opacity: 0.03;
+			pointer-events: none;
+			z-index: 2;
+			background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+			background-size: 256px 256px;
+		}
+
+		/* Radial vignette */
+		body::after {
+			content: '';
+			position: fixed;
+			inset: 0;
+			background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%);
+			pointer-events: none;
+			z-index: 1;
+		}
+
+		.container {
+			text-align: center;
+			position: relative;
+			z-index: 3;
+			padding: 2rem;
+			animation: fadeUp 0.6s ease-out both;
+		}
+
+		@keyframes fadeUp {
+			from { opacity: 0; transform: translateY(20px); }
+			to { opacity: 1; transform: translateY(0); }
+		}
+
+		/* Logo */
+		.logo {
+			font-family: 'Cinzel', serif;
+			font-size: clamp(2rem, 6vw, 3rem);
+			font-weight: 700;
+			letter-spacing: 4px;
+			text-transform: uppercase;
+			background: linear-gradient(135deg, #FFFFFF 0%, #D4A746 100%);
+			-webkit-background-clip: text;
+			background-clip: text;
+			-webkit-text-fill-color: transparent;
+			margin-bottom: 1.5rem;
+		}
+
+		/* Error code */
+		.error-code {
+			font-family: 'Cinzel', serif;
+			font-size: clamp(6rem, 20vw, 12rem);
+			font-weight: 800;
+			line-height: 1;
+			background: linear-gradient(135deg, rgba(212, 167, 70, 0.15) 0%, rgba(212, 167, 70, 0.04) 100%);
+			-webkit-background-clip: text;
+			background-clip: text;
+			-webkit-text-fill-color: transparent;
+			margin-bottom: 0.5rem;
+			user-select: none;
+		}
+
+		.error-msg {
+			font-size: clamp(1rem, 3vw, 1.25rem);
+			font-weight: 300;
+			color: #a09888;
+			margin-bottom: 2.5rem;
+			letter-spacing: 0.02em;
+		}
+
+		/* Button */
+		.back-btn {
+			display: inline-block;
+			padding: 0.85rem 2.5rem;
+			font-family: 'Outfit', sans-serif;
+			font-size: 0.95rem;
+			font-weight: 600;
+			letter-spacing: 0.06em;
+			text-transform: uppercase;
+			color: #0A0A0A;
+			background: linear-gradient(135deg, #FFFFFF 0%, #D4A746 100%);
+			border: none;
+			border-radius: 0.625rem;
+			cursor: pointer;
+			transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+			position: relative;
+			overflow: hidden;
+			box-shadow: 0 4px 20px rgba(212, 167, 70, 0.3);
+		}
+
+		.back-btn:hover {
+			transform: translateY(-2px);
+			box-shadow: 0 8px 32px rgba(212, 167, 70, 0.4);
+		}
+
+		/* Shimmer on button */
+		.back-btn::after {
+			content: '';
+			position: absolute;
+			top: 0;
+			left: -100%;
+			width: 100%;
+			height: 100%;
+			background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+			animation: shimmer 3s ease-in-out infinite;
+		}
+
+		@keyframes shimmer {
+			0% { left: -100%; }
+			50%, 100% { left: 100%; }
+		}
+
+		/* Ambient gold particles */
+		.particle {
+			position: fixed;
+			width: 2px;
+			height: 2px;
+			background: rgba(212, 167, 70, 0.3);
+			border-radius: 50%;
+			pointer-events: none;
+			z-index: 0;
+			animation: float linear infinite;
+		}
+
+		@keyframes float {
+			0% { transform: translateY(100vh) scale(0); opacity: 0; }
+			10% { opacity: 1; }
+			90% { opacity: 1; }
+			100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+		}
+	</style>
 </head>
+<body>
 
-<body style="transition: background 1.5s;">
+	<div class="container">
+		<div class="logo">2B Chat</div>
+		<div class="error-code">404</div>
+		<p class="error-msg">Parece que essa p&aacute;gina n&atilde;o existe.</p>
+		<button class="back-btn" onclick="history.go(-1);">Voltar</button>
+	</div>
 
-<div align="center">
-	<img src="data:image/png;base64,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" style="padding-top:60px; max-width:90%;"/>
-	<b><p style="color:#FFFFFF;font-family:roboto;padding:20px;font-size:30px;">
-		Oops, Some Error Occured!
-	</p></b>
-	<button onclick="history.go(-1);" style="
-    font-size: 40px;
-    font-family: roboto;
-    border: 5px solid #FFFFFF;
-    background-color: rgba(255, 255, 255, 0);
-    color: #ffffff;"><b>TRY AGAIN</b></button>
-</div>
-
-<script>
-	const randomColor = () => '#' + Math.random().toString(16).substr(-6)
-	const changeColor = () => document.body.style.backgroundColor = randomColor()
-
-	setInterval(() => {
-	  changeColor()
-	}, 1500)
-
-	// start color animation as soon as document is ready
-	document.onreadystatechange = () => {
-	  if (document.readyState === 'complete') {
-		changeColor()
-	  }
-	}
-</script>
+	<script>
+		// Floating gold particles
+		for (let i = 0; i < 20; i++) {
+			const p = document.createElement('div');
+			p.className = 'particle';
+			p.style.left = Math.random() * 100 + '%';
+			p.style.animationDuration = (4 + Math.random() * 6) + 's';
+			p.style.animationDelay = (Math.random() * 5) + 's';
+			p.style.width = p.style.height = (1 + Math.random() * 2) + 'px';
+			document.body.appendChild(p);
+		}
+	</script>
 </body>
 </html>
