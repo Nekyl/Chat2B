@@ -1054,6 +1054,9 @@ function openImageEditor(mediaId) {
 
     currentEditingMediaId = mediaId;
 
+    // Dismiss keyboard on iOS before opening editor
+    if (document.activeElement) document.activeElement.blur();
+
     const editorModal = document.getElementById('image-editor-modal');
     const imageTarget = document.getElementById('editor-image-target');
 
