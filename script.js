@@ -1965,7 +1965,7 @@ async function fetchAudioFromModel(apiConfig, selectedModel) {
                     generationConfig: {
                         temperature: 1,
                         responseModalities: ["AUDIO"],
-                        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Leda" } } }
+                        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } } }
                     },
                     safetySettings: [
                         { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
@@ -3488,7 +3488,7 @@ async function speakText(rawText, button, messageDiv) {
                 generationConfig: {
                     temperature: 1,
                     responseModalities: ["AUDIO"],
-                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Leda" } } }
+                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } } }
                 }
             })
         });
