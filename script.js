@@ -3488,7 +3488,7 @@ async function speakText(rawText, button, messageDiv) {
                 generationConfig: {
                     temperature: 1,
                     responseModalities: ["AUDIO"],
-                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Leda" } } }
+                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } } }
                 }
             })
         });
